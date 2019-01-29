@@ -9,10 +9,10 @@ from devito.dle import BlockDimension, fold_blockable_tree, unfold_blocked_tree
 from devito.dle.backends import (BasicRewriter, Ompizer, dle_pass, simdinfo,
                                  get_simd_flag, get_simd_items)
 from devito.exceptions import DLEException
-from devito.ir.iet import (Expression, Iteration, List, HaloSpot, PARALLEL, ELEMENTAL,
-                           REMAINDER, tagger, FindSymbols, FindNodes, FindAdjacent,
+from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, PARALLEL,
+                           REMAINDER, FindSymbols, FindNodes, FindAdjacent,
                            IsPerfectIteration, MapNodes, Transformer, compose_nodes,
-                           retrieve_iteration_tree)
+                           retrieve_iteration_tree, make_efunc)
 from devito.logger import perf_adv
 from devito.tools import as_tuple
 
@@ -95,6 +95,7 @@ class AdvancedRewriter(BasicRewriter):
         """Apply loop blocking to PARALLEL Iteration trees."""
         exclude_innermost = not self.params.get('blockinner', False)
         ignore_heuristic = self.params.get('blockalways', False)
+        noinline = self._compiler_decoration('noinline', cgen.Comment('noinline?'))
 
         # Make sure loop blocking will span as many Iterations as possible
         fold = fold_blockable_tree(nodes, exclude_innermost)
@@ -119,64 +120,65 @@ class AdvancedRewriter(BasicRewriter):
                 # sequential loop (e.g., a timestepping loop)
                 continue
 
-            # Decorate intra-block iterations with an IterationProperty
-            TAG = tagger(len(mapper))
-
-            # Build all necessary Iteration objects, individually. These will
-            # subsequently be composed to implement loop blocking.
-            inter_blocks = []
-            intra_blocks = []
-            remainders = []
+            # Apply loop blocking to `tree`
+            interb = []
+            intrab = []
             for i in iterations:
-                # Build Iteration over blocks
                 name = "%s%d_block" % (i.dim.name, len(mapper))
                 dim = blocked.setdefault(i, BlockDimension(i.dim, name=name))
-                binnersize = i.symbolic_size + (i.offsets[1] - i.offsets[0])
-                bmax = i.dim.symbolic_max - (binnersize % dim.step)
-                inter_block = Iteration([], dim, bmax, offsets=i.offsets,
-                                        properties=PARALLEL)
-                inter_blocks.append(inter_block)
-
+                # Build Iteration over blocks
+                interb.append(Iteration([], dim, dim.symbolic_max, offsets=i.offsets,
+                                        properties=PARALLEL))
                 # Build Iteration within a block
-                limits = (dim, dim + dim.step - 1, 1)
-                intra_block = i._rebuild([], limits=limits, offsets=(0, 0),
-                                         properties=i.properties + (TAG, ELEMENTAL))
-                intra_blocks.append(intra_block)
+                intrab.append(i._rebuild([], limits=(dim, dim + dim.step - 1, 1),
+                                         offsets=(0, 0)))
+            blocked_tree = compose_nodes(interb + intrab + [iterations[-1].nodes])
 
-                # Build unitary-increment Iteration over the 'leftover' region.
-                # This will be used for remainder loops, executed when any
-                # dimension size is not a multiple of the block size.
-                remainder = i._rebuild([], limits=[bmax + 1, i.dim.symbolic_max, 1],
-                                       offsets=(i.offsets[1], i.offsets[1]))
-                remainders.append(remainder)
+            # Unroll any previously folded Iterations
+            blocked_tree = unfold_blocked_tree(blocked_tree)
 
-            # Build blocked Iteration nest
-            blocked_tree = compose_nodes(inter_blocks + intra_blocks +
-                                         [iterations[-1].nodes])
+            # Promote to a separate Callable
+            efunc = make_efunc("f%d" % len(mapper), blocked_tree)
+
+            # Compute the iteration ranges
+            full = {}
+            remainders = {}
+            for i, bi in zip(iterations, interb):
+                binnersize = i.symbolic_size + (i.offsets[1] - i.offsets[0])
+                bmax = i.dim.symbolic_max - (binnersize % bi.dim.step)
+                full[i.dim] = (i.dim.symbolic_min, bmax)
+                remainders[i.dim] = (bmax+1+i.offsets[0], i.dim.symbolic_max+i.offsets[1])
+
+            # Build `n+1` Calls to the `efunc`, where `n` is the number of
+            # remainder regions to be iterated over
+            calls = [List(header=noinline, body=Call(name, efunc.parameters))]
+            for n in range(len(iterations)):
+                for c in combinations(full, n + 1):
+                    args = 
+                    args = {k: v for k, v in remainders.items() if k in c}
+                    args.update({k: (0, 1) for i in remainders if i not in c})
+                    calls.append(efunc.make_call(args))
 
             # Build remainder Iterations
-            remainder_trees = []
-            for n in range(len(iterations)):
-                for c in combinations([i.dim for i in iterations], n + 1):
-                    # First all inter-block Interations
-                    nodes = [b._rebuild(properties=b.properties + (REMAINDER,))
-                             for b, r in zip(inter_blocks, remainders)
-                             if r.dim not in c]
-                    # Then intra-block or remainder, for each dim (in order)
-                    properties = (REMAINDER, TAG, ELEMENTAL)
-                    for b, r in zip(intra_blocks, remainders):
-                        handle = r if b.dim in c else b
-                        nodes.append(handle._rebuild(properties=properties))
-                    nodes.extend([iterations[-1].nodes])
-                    remainder_trees.append(compose_nodes(nodes))
+            #remainder_trees = []
+            #for n in range(len(iterations)):
+            #    for c in combinations([i.dim for i in iterations], n + 1):
+            #        # First all inter-block Interations
+            #        nodes = [b._rebuild(properties=b.properties + (REMAINDER,))
+            #                 for b, r in zip(inter_blocks, remainders)
+            #                 if r.dim not in c]
+            #        # Then intra-block or remainder, for each dim (in order)
+            #        properties = (REMAINDER, )
+            #        for b, r in zip(intra_blocks, remainders):
+            #            handle = r if b.dim in c else b
+            #            nodes.append(handle._rebuild(properties=properties))
+            #        nodes.extend([iterations[-1].nodes])
+            #        remainder_trees.append(compose_nodes(nodes))
 
             # Will replace with blocked loop tree
             mapper[root] = List(body=[blocked_tree] + remainder_trees)
 
         rebuilt = Transformer(mapper).visit(fold)
-
-        # Finish unrolling any previously folded Iterations
-        processed = unfold_blocked_tree(rebuilt)
 
         return processed, {'dimensions': list(blocked.values())}
 
