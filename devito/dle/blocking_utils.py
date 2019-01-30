@@ -13,13 +13,10 @@ __all__ = ['BlockDimension', 'fold_blockable_tree', 'unfold_blocked_tree']
 
 
 def fold_blockable_tree(node, exclude_innermost=False):
-    """
-    Create IterationFolds from sequences of nested Iterations.
-    """
-    found = FindAdjacent(Iteration).visit(node)
+    """Create IterationFolds from sequences of nested Iterations."""
 
     mapper = {}
-    for k, v in found.items():
+    for k, v in FindAdjacent(Iteration).visit(node).items():
         for i in v:
             # Pre-condition: they all must be perfect iterations
             assert len(i) > 1
@@ -189,13 +186,12 @@ def optimize_unfolded_tree(unfolded, root):
             mapper[t1.dim] = t1_udim
 
         # Temporary arrays can now be moved onto the stack
-        if all(not j.is_Remainder for j in modified_tree):
-            dimensions = tuple(j.limits[0] for j in modified_root)
-            for j in writes:
-                if j.is_Array:
-                    j_dimensions = dimensions + j.dimensions[len(modified_root):]
-                    j_shape = tuple(k.symbolic_size for k in j_dimensions)
-                    j.update(shape=j_shape, dimensions=j_dimensions, scope='stack')
+        dimensions = tuple(j.limits[0] for j in modified_root)
+        for j in writes:
+            if j.is_Array:
+                j_dimensions = dimensions + j.dimensions[len(modified_root):]
+                j_shape = tuple(k.symbolic_size for k in j_dimensions)
+                j.update(shape=j_shape, dimensions=j_dimensions, scope='stack')
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
