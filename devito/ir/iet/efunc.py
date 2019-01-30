@@ -1,5 +1,7 @@
-from devito.ir.iet import (ArrayCast, Call, Callable, Iteration, List, FindSymbols,
-                           FindNodes, derive_parameters, iet_insert_C_decls)
+from devito.ir.iet.nodes import ArrayCast, Call, Callable, Expression, Iteration, List
+from devito.ir.iet.scheduler import iet_insert_C_decls
+from devito.ir.iet.utils import derive_parameters
+from devito.ir.iet.visitors import FindSymbols, FindNodes
 
 __all__ = ['make_efunc']
 
@@ -46,17 +48,20 @@ def make_efunc(name, iet, dynamic_parameters, retval='void', prefix='static'):
     """
     Create an ElementalFunction from (a sequence of) perfectly nested Iterations.
     """
+    # Arrays are by definition (vector) temporaries, so if they are written
+    # within `iet`, they can also be declared and allocated within the `efunc`
     items = FindSymbols().visit(iet)
+    local = [i.write for i in FindNodes(Expression).visit(iet) if i.write.is_Array]
+    external = [i for i in items if i.is_Tensor and i not in local]
 
     # Insert array casts
-    casts = [ArrayCast(i) for i in items if i.is_Tensor]
+    casts = [ArrayCast(i) for i in external]
     iet = List(body=casts + [iet])
 
     # Insert declarations
-    external = [i for i in items if i.is_Array]
     iet = iet_insert_C_decls(iet, external)
 
     # The Callable parameters
-    params = derive_parameters(iet)
+    params = [i for i in derive_parameters(iet) if i not in local]
 
     return ElementalFunction(name, iet, retval, params, prefix, dynamic_parameters)
