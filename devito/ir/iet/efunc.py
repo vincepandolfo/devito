@@ -5,26 +5,22 @@ __all__ = ['make_efunc']
 
 
 class ElementalFunction(Callable):
-    """
-    A Callable performing a computation over a convex iteration space.
 
-    The iteration space is implemented as (a sequence of) perfectly
-    nested Iterations.
+    """
+    A Callable performing a computation over an abstract convex iteration space.
+
+    A Call to an ElementalFunction will "instantiate" such iteration space by
+    supplying bounds and step increment for each Dimension listed in
+    ``dynamic_dims``.
     """
 
-    def __init__(self, name, body, retval, parameters, prefix=('static', 'inline')):
+    def __init__(self, name, body, retval, dynamic_dims, parameters=None,
+                 prefix=('static', 'inline')):
         super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
+        self._dynamic_dims = dynamic_dims
 
-        self._mapper = {}
-        for i in FindNodes(Iteration).visit(body):
-            try:
-                self._mapper[i.dim] = (self.parameters.index(i.dim.symbolic_min),
-                                       self.parameters.index(i.dim.symbolic_max))
-            except ValueError:
-                pass
-
-    def make_call(self, subs):
-        pass
+    def make_call(self, dynamic_dims_mapper):
+        from IPython import embed; embed()
 
 
 def make_efunc(name, iet, retval='void', prefix='static'):

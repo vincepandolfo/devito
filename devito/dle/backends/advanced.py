@@ -151,10 +151,10 @@ class AdvancedRewriter(BasicRewriter):
 
             # Build `n+1` Calls to the `efunc`, where `n` is the number of
             # remainder regions to be iterated over
+            from IPython import embed; embed()
             calls = [List(header=noinline, body=Call(name, efunc.parameters))]
             for n in range(len(iterations)):
                 for c in combinations(full, n + 1):
-                    args = 
                     args = {k: v for k, v in remainders.items() if k in c}
                     args.update({k: (0, 1) for i in remainders if i not in c})
                     calls.append(efunc.make_call(args))
