@@ -23,7 +23,7 @@ class ElementalFunction(Callable):
         from IPython import embed; embed()
 
 
-def make_efunc(name, iet, retval='void', prefix='static'):
+def make_efunc(name, iet, dynamic_dims, retval='void', prefix='static'):
     """
     Create an ElementalFunction from (a sequence of) perfectly nested Iterations.
     """
@@ -40,4 +40,4 @@ def make_efunc(name, iet, retval='void', prefix='static'):
     # The Callable parameters
     params = derive_parameters(iet)
 
-    return ElementalFunction(name, iet, retval, params, prefix)
+    return ElementalFunction(name, iet, retval, dynamic_dims, params, prefix)

@@ -101,7 +101,7 @@ class AdvancedRewriter(BasicRewriter):
         fold = fold_blockable_tree(nodes, exclude_innermost)
 
         mapper = {}
-        blocked = OrderedDict()
+        block_dims = []
         for tree in retrieve_iteration_tree(fold):
             # Is the Iteration tree blockable ?
             iterations = [i for i in tree if i.is_Parallel]
@@ -124,34 +124,33 @@ class AdvancedRewriter(BasicRewriter):
             interb = []
             intrab = []
             for i in iterations:
-                name = "%s%d_block" % (i.dim.name, len(mapper))
-                dim = blocked.setdefault(i, BlockDimension(i.dim, name=name))
+                d = BlockDimension(i.dim, name="%s%d_block" % (i.dim.name, len(mapper)))
                 # Build Iteration over blocks
-                interb.append(Iteration([], dim, dim.symbolic_max, offsets=i.offsets,
+                interb.append(Iteration([], d, d.symbolic_max, offsets=i.offsets,
                                         properties=PARALLEL))
                 # Build Iteration within a block
-                intrab.append(i._rebuild([], limits=(dim, dim + dim.step - 1, 1),
-                                         offsets=(0, 0)))
-            blocked_tree = compose_nodes(interb + intrab + [iterations[-1].nodes])
+                intrab.append(i._rebuild([], limits=(d, d+d.step-1, 1), offsets=(0, 0)))
+                # Record that a new BlockDimension has been introduced
+                block_dims.append(d)
 
-            # Unroll any previously folded Iterations
-            blocked_tree = unfold_blocked_tree(blocked_tree)
+            # Construct the blocked tree
+            blocked = compose_nodes(interb + intrab + [iterations[-1].nodes])
+            blocked = unfold_blocked_tree(blocked)
 
             # Promote to a separate Callable
-            efunc = make_efunc("f%d" % len(mapper), blocked_tree)
+            efunc = make_efunc("f%d" % len(mapper), blocked, [bi.dim for bi in interb])
 
             # Compute the iteration ranges
             full = {}
             remainders = {}
             for i, bi in zip(iterations, interb):
-                binnersize = i.symbolic_size + (i.offsets[1] - i.offsets[0])
-                bmax = i.dim.symbolic_max - (binnersize % bi.dim.step)
-                full[i.dim] = (i.dim.symbolic_min, bmax)
-                remainders[i.dim] = (bmax+1+i.offsets[0], i.dim.symbolic_max+i.offsets[1])
+                maxb = i.symbolic_max - (i.symbolic_size % bi.dim.step)
+                full[i.dim] = (i.symbolic_min, maxb, bi.dim.step)
+                remainders[i.dim] = (maxb+1, i.symbolic_max, i.symbolic_max-(maxb+1))
+            from IPython import embed; embed()
 
             # Build `n+1` Calls to the `efunc`, where `n` is the number of
             # remainder regions to be iterated over
-            from IPython import embed; embed()
             calls = [List(header=noinline, body=Call(name, efunc.parameters))]
             for n in range(len(iterations)):
                 for c in combinations(full, n + 1):
@@ -176,11 +175,12 @@ class AdvancedRewriter(BasicRewriter):
             #        remainder_trees.append(compose_nodes(nodes))
 
             # Will replace with blocked loop tree
-            mapper[root] = List(body=[blocked_tree] + remainder_trees)
+            # TODO
+            # mapper[root] = List(body=[blocked] + remainder_trees)
 
         rebuilt = Transformer(mapper).visit(fold)
 
-        return processed, {'dimensions': list(blocked.values())}
+        return processed, {'dimensions': block_dims}
 
     @dle_pass
     def _simdize(self, nodes, state):
