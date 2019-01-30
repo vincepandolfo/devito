@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from itertools import combinations
+from itertools import combinations, product
 
 import cgen
 import numpy as np
@@ -14,7 +14,7 @@ from devito.ir.iet import (Call, Expression, Iteration, List, HaloSpot, PARALLEL
                            IsPerfectIteration, MapNodes, Transformer, compose_nodes,
                            retrieve_iteration_tree, make_efunc)
 from devito.logger import perf_adv
-from devito.tools import as_tuple
+from devito.tools import as_tuple, flatten
 
 
 class AdvancedRewriter(BasicRewriter):
@@ -28,7 +28,6 @@ class AdvancedRewriter(BasicRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_efuncs(state)
         self._minimize_remainders(state)
 
     @dle_pass
@@ -91,18 +90,19 @@ class AdvancedRewriter(BasicRewriter):
         return iet, {}
 
     @dle_pass
-    def _loop_blocking(self, nodes, state):
+    def _loop_blocking(self, iet, state):
         """Apply loop blocking to PARALLEL Iteration trees."""
         exclude_innermost = not self.params.get('blockinner', False)
         ignore_heuristic = self.params.get('blockalways', False)
         noinline = self._compiler_decoration('noinline', cgen.Comment('noinline?'))
 
         # Make sure loop blocking will span as many Iterations as possible
-        fold = fold_blockable_tree(nodes, exclude_innermost)
+        iet = fold_blockable_tree(iet, exclude_innermost)
 
         mapper = {}
+        efuncs = []
         block_dims = []
-        for tree in retrieve_iteration_tree(fold):
+        for tree in retrieve_iteration_tree(iet):
             # Is the Iteration tree blockable ?
             iterations = [i for i in tree if i.is_Parallel]
             if exclude_innermost:
@@ -138,49 +138,38 @@ class AdvancedRewriter(BasicRewriter):
             blocked = unfold_blocked_tree(blocked)
 
             # Promote to a separate Callable
-            efunc = make_efunc("f%d" % len(mapper), blocked, [bi.dim for bi in interb])
+            dynamic_parameters = flatten((bi.dim, bi.dim.symbolic_size) for bi in interb)
+            efunc = make_efunc("bf%d" % len(mapper), blocked, dynamic_parameters)
+            efuncs.append(efunc)
 
             # Compute the iteration ranges
-            full = {}
-            remainders = {}
+            ranges = []
             for i, bi in zip(iterations, interb):
                 maxb = i.symbolic_max - (i.symbolic_size % bi.dim.step)
-                full[i.dim] = (i.symbolic_min, maxb, bi.dim.step)
-                remainders[i.dim] = (maxb+1, i.symbolic_max, i.symbolic_max-(maxb+1))
-            from IPython import embed; embed()
+                ranges.append(((i.symbolic_min, maxb, bi.dim.step),
+                               (maxb+1, i.symbolic_max, i.symbolic_max-(maxb+1))))
 
-            # Build `n+1` Calls to the `efunc`, where `n` is the number of
-            # remainder regions to be iterated over
-            calls = [List(header=noinline, body=Call(name, efunc.parameters))]
-            for n in range(len(iterations)):
-                for c in combinations(full, n + 1):
-                    args = {k: v for k, v in remainders.items() if k in c}
-                    args.update({k: (0, 1) for i in remainders if i not in c})
-                    calls.append(efunc.make_call(args))
+            # Build Calls to the `efunc`
+            body = []
+            for p in product(*ranges):
+                dynamic_parameters_mapper = {}
+                for bi, (m, M, b) in zip(interb, p):
+                    dynamic_parameters_mapper[bi.dim] = (m, M)
+                    dynamic_parameters_mapper[bi.dim.step] = (b,)
+                body.append(efunc.make_call(dynamic_parameters_mapper))
 
-            # Build remainder Iterations
-            #remainder_trees = []
-            #for n in range(len(iterations)):
-            #    for c in combinations([i.dim for i in iterations], n + 1):
-            #        # First all inter-block Interations
-            #        nodes = [b._rebuild(properties=b.properties + (REMAINDER,))
-            #                 for b, r in zip(inter_blocks, remainders)
-            #                 if r.dim not in c]
-            #        # Then intra-block or remainder, for each dim (in order)
-            #        properties = (REMAINDER, )
-            #        for b, r in zip(intra_blocks, remainders):
-            #            handle = r if b.dim in c else b
-            #            nodes.append(handle._rebuild(properties=properties))
-            #        nodes.extend([iterations[-1].nodes])
-            #        remainder_trees.append(compose_nodes(nodes))
+            # Build indirect Call to the `efunc` Calls
+            dynamic_parameters = [i.dim for i in iterations]
+            dynamic_parameters.extend([bi.dim.step for bi in interb])
+            efunc = make_efunc("f%d" % len(mapper), body, dynamic_parameters)
+            efuncs.append(efunc)
 
-            # Will replace with blocked loop tree
-            # TODO
-            # mapper[root] = List(body=[blocked] + remainder_trees)
+            # Track everything to ultimately transform the input `iet`
+            mapper[root] = efunc.make_call()
 
-        rebuilt = Transformer(mapper).visit(fold)
+        iet = Transformer(mapper).visit(iet)
 
-        return processed, {'dimensions': block_dims}
+        return iet, {'dimensions': block_dims, 'efuncs': efuncs}
 
     @dle_pass
     def _simdize(self, nodes, state):
@@ -304,7 +293,6 @@ class AdvancedRewriterSafeMath(AdvancedRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_efuncs(state)
         self._minimize_remainders(state)
 
 
@@ -318,7 +306,6 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._simdize(state)
         if self.params['openmp'] is True:
             self._parallelize(state)
-        self._create_efuncs(state)
         self._minimize_remainders(state)
 
     @dle_pass
@@ -359,7 +346,6 @@ class CustomRewriter(SpeculativeRewriter):
         'blocking': SpeculativeRewriter._loop_blocking,
         'openmp': SpeculativeRewriter._parallelize,
         'simd': SpeculativeRewriter._simdize,
-        'split': SpeculativeRewriter._create_efuncs
     }
 
     def __init__(self, nodes, passes, params):

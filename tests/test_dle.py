@@ -8,8 +8,9 @@ from conftest import EVAL, skipif
 from devito import Grid, Function, TimeFunction, Eq, Operator, solve
 from devito.dle import transform
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
-                           Transformer, FindNodes, iet_analyze, retrieve_iteration_tree)
+from devito.ir.iet import (Expression, Callable, Iteration, List, tagger,
+                           Transformer, FindNodes, iet_analyze, retrieve_iteration_tree,
+                           make_efunc)
 from devito.tools import as_tuple
 from unittest.mock import patch
 

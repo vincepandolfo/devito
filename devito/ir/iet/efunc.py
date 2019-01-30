@@ -11,19 +11,38 @@ class ElementalFunction(Callable):
 
     A Call to an ElementalFunction will "instantiate" such iteration space by
     supplying bounds and step increment for each Dimension listed in
-    ``dynamic_dims``.
+    ``dynamic_parameters``.
     """
 
-    def __init__(self, name, body, retval, dynamic_dims, parameters=None,
-                 prefix=('static', 'inline')):
+    def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline'),
+                 dynamic_parameters=None):
         super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
-        self._dynamic_dims = dynamic_dims
 
-    def make_call(self, dynamic_dims_mapper):
-        from IPython import embed; embed()
+        self._mapper = {}
+        for i in dynamic_parameters:
+            if i.is_Dimension:
+                self._mapper[i] = (parameters.index(i.symbolic_min),
+                                   parameters.index(i.symbolic_max))
+            else:
+                self._mapper[i] = (parameters.index(i),)
+
+    def make_call(self, dynamic_parameters_mapper=None):
+        dynamic_parameters_mapper = dynamic_parameters_mapper or {}
+        arguments = list(self.parameters)
+        for k, v in dynamic_parameters_mapper.items():
+            # Sanity check
+            if k not in self._mapper:
+                raise ValueError("`k` is not a dynamic parameter" % k)
+            if len(self._mapper[k]) != len(v):
+                raise ValueError("Expected %d values for dynamic parameter `%s`, given %d"
+                                 % (len(self._mapper[k]), k, len(v)))
+            # Create the argument list
+            for i, j in zip(self._mapper[k], v):
+                arguments[i] = j
+        return Call(self.name, tuple(arguments))
 
 
-def make_efunc(name, iet, dynamic_dims, retval='void', prefix='static'):
+def make_efunc(name, iet, dynamic_parameters, retval='void', prefix='static'):
     """
     Create an ElementalFunction from (a sequence of) perfectly nested Iterations.
     """
@@ -40,4 +59,4 @@ def make_efunc(name, iet, dynamic_dims, retval='void', prefix='static'):
     # The Callable parameters
     params = derive_parameters(iet)
 
-    return ElementalFunction(name, iet, retval, dynamic_dims, params, prefix)
+    return ElementalFunction(name, iet, retval, params, prefix, dynamic_parameters)
