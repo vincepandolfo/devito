@@ -147,7 +147,7 @@ class AdvancedRewriter(BasicRewriter):
             for i, bi in zip(iterations, interb):
                 maxb = i.symbolic_max - (i.symbolic_size % bi.dim.step)
                 ranges.append(((i.symbolic_min, maxb, bi.dim.step),
-                               (maxb+1, i.symbolic_max, i.symbolic_max-(maxb+1))))
+                               (maxb + 1, i.symbolic_max, i.symbolic_max - maxb)))
 
             # Build Calls to the `efunc`
             body = []
