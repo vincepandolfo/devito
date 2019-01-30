@@ -180,7 +180,7 @@ def optimize_unfolded_tree(unfolded, root):
             modified_tree.append(t1._rebuild(limits=limits,
                                              uindices=t1.uindices + (t1_udim,)))
 
-            t2_udim = IncrDimension(t1.dim, -t1.limits[0], 1, "%ss%d" % (t1.index, i))
+            t2_udim = IncrDimension(t1.dim, t1.offsets[0], 1, "%ss%d" % (t1.index, i))
             modified_root.append(t2._rebuild(uindices=t2.uindices + (t2_udim,)))
 
             mapper[t1.dim] = t1_udim
