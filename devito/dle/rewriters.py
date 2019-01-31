@@ -175,41 +175,25 @@ class AdvancedRewriter(BasicRewriter):
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # At this point, some HaloSpots may have become empty (i.e., requiring
-        # no communications). Such HaloSpots can be dropped, and their body might
-        # be squashed with that of an adjacent HaloSpot. For example:
+        # no communications), hence they can be removed
         #
         # <HaloSpot(u,v)>           HaloSpot(u,v)
         #   <A>                       <A>
-        # <HaloSpot()>      ---->     <B>
+        # <HaloSpot()>      ---->   <B>
         #   <B>
-        mapper = {}
-        for v in FindAdjacent(HaloSpot).visit(iet).values():
-            for g in v:
-                root = g[0]
-                for i in g[1:]:
-                    if i.is_empty:
-                        rebuilt = mapper.get(root, root)
-                        body = List(body=as_tuple(root.body) + (i.body,))
-                        mapper[root] = rebuilt._rebuild(body=body)
-                        mapper[i] = None
-                    else:
-                        root = i
-        # Any leftover empty HaloSpot should be dropped
-        mapper.update({i: i.body for i in FindNodes(HaloSpot).visit(iet)
-                       if i.is_empty and i not in mapper})
+        mapper = {i: i.body for i in FindNodes(HaloSpot).visit(iet) if i.is_empty}
         iet = Transformer(mapper, nested=True).visit(iet)
 
         # Finally, we try to move HaloSpot-free Iteration nests within HaloSpot
         # subtrees, to overlap as much computation as possible. The HaloSpot-free
         # Iteration nests must be fully affine, otherwise we wouldn't be able to
-        # honour the data dependences along the halo. For example, consider:
+        # honour the data dependences along the halo
         #
         # <HaloSpot(u,v)>            HaloSpot(u,v)
         #   <A>             ---->      <A>
         # <B>              affine?     <B>
         #
-        # Here, <B> doesn't need up-to-date halo values for `u` and `v` directly
-        # (as for example there's no stencil in `u` and `v`), but it might need the
+        # Here, <B> doesn't require any halo exchange, but it might still need the
         # output of <A>; thus, if we do computation/communication overlap over <A>
         # *and* want to embed <B> within the HaloSpot, then <B>'s iteration space
         # will have to be split as well. For this, <B> must be affine.
@@ -228,7 +212,6 @@ class AdvancedRewriter(BasicRewriter):
                     else:
                         root = None
         iet = Transformer(mapper).visit(iet)
-        from IPython import embed; embed()
 
         return iet, {}
 
