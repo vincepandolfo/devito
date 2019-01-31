@@ -2,6 +2,7 @@ from devito.ir.iet.nodes import ArrayCast, Call, Callable, Expression, Iteration
 from devito.ir.iet.scheduler import iet_insert_C_decls
 from devito.ir.iet.utils import derive_parameters
 from devito.ir.iet.visitors import FindSymbols, FindNodes
+from devito.tools import as_tuple
 
 __all__ = ['make_efunc']
 
@@ -21,7 +22,7 @@ class ElementalFunction(Callable):
         super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
 
         self._mapper = {}
-        for i in dynamic_parameters:
+        for i in as_tuple(dynamic_parameters):
             if i.is_Dimension:
                 self._mapper[i] = (parameters.index(i.symbolic_min),
                                    parameters.index(i.symbolic_max))
@@ -44,7 +45,7 @@ class ElementalFunction(Callable):
         return Call(self.name, tuple(arguments))
 
 
-def make_efunc(name, iet, dynamic_parameters, retval='void', prefix='static'):
+def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
     """
     Create an ElementalFunction from (a sequence of) perfectly nested Iterations.
     """
