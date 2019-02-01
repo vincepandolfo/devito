@@ -1,4 +1,4 @@
-from devito.ir.iet.nodes import ArrayCast, Call, Callable, Expression, Iteration, List
+from devito.ir.iet.nodes import ArrayCast, Call, Callable, Expression, List
 from devito.ir.iet.scheduler import iet_insert_C_decls
 from devito.ir.iet.utils import derive_parameters
 from devito.ir.iet.visitors import FindSymbols, FindNodes
