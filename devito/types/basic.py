@@ -61,8 +61,10 @@ class Basic(object):
     # Symbolic objects created internally by Devito
     is_Symbol = False
     is_Array = False
+    is_ArrayAccess = False
     is_Object = False
     is_LocalObject = False
+    is_StringLiteral = False
 
     # Created by the user
     is_Input = False
@@ -191,6 +193,14 @@ class Cached(object):
         """The hash value of an object that caches on its type is the
         hash value of the type itself."""
         return hash(type(self))
+
+
+class String(Basic):
+
+    is_StringLiteral = True
+
+    def __init__(self, value):
+        self.value = value
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable):
@@ -835,6 +845,9 @@ class Array(AbstractCachedFunction):
     # Pickling support
     _pickle_kwargs = AbstractCachedFunction._pickle_kwargs + ['dimensions', 'scope']
 
+
+class SymbolicArray(Array):
+    is_Symbol = True
 
 # Objects belonging to the Devito API not involving data, such as data structures
 # that need to be passed to external libraries
