@@ -170,6 +170,10 @@ class CGen(Visitor):
                     ret.append('&%s' % i._C_name)
                 elif i.is_Array:
                     ret.append("(%s)%s" % (i._C_typename, i.name))
+                elif i.is_StringLiteral:
+                    ret.append('"%s"' % i.value)
+                elif i.is_Function:
+                    ret.append("%s" % i.name)
                 else:
                     ret.append(i._C_name)
             except AttributeError:

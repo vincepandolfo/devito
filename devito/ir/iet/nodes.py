@@ -18,7 +18,7 @@ from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
 from devito.types import Symbol, Indexed
-from devito.types.basic import AbstractFunction
+from devito.types.basic import String, AbstractFunction
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
@@ -195,6 +195,24 @@ class Element(Node):
     def __repr__(self):
         return "Element::\n\t%s" % (self.element)
 
+    @property
+    def functions(self):
+        if (isinstance(self.element, c.Initializer)
+                and hasattr(self.element.data, 'functions')):
+            return self.element.data.functions
+
+    @property
+    def free_symbols(self):
+        if (isinstance(self.element, c.Initializer)
+                and hasattr(self.element.data, 'free_symbols')):
+            return self.element.data.free_symbols
+
+    @property
+    def children(self):
+        if (isinstance(self.element, c.Initializer)
+                and isinstance(self.element.data, Node)):
+            return [self.element.data]
+
 
 class Call(Simple, Node):
 
@@ -217,10 +235,12 @@ class Call(Simple, Node):
     def free_symbols(self):
         free = set()
         for i in self.arguments:
-            if isinstance(i, numbers.Number):
+            if isinstance(i, numbers.Number) or isinstance(i, String):
                 continue
             elif isinstance(i, AbstractFunction):
                 free.add(i)
+            elif isinstance(i, Indexed):
+                free.add(i.function)
             else:
                 free.update(i.free_symbols)
         return free

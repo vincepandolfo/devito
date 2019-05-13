@@ -1,11 +1,11 @@
 from collections import OrderedDict
 
 from devito.cgen_utils import Allocator
-from devito.ir.iet import (ArrayCast, Expression, Increment, LocalExpression, Element,
-                           Iteration, List, Conditional, Section, HaloSpot,
+from devito.ir.iet import (ArrayCast, Call, Expression, Increment, LocalExpression,
+                           Element, Iteration, List, Conditional, Section, HaloSpot,
                            ExpressionBundle, MapSections, Transformer, FindNodes,
                            FindSymbols, XSubs, iet_analyze, filter_iterations)
-from devito.symbolics import IntDiv, xreplace_indices
+from devito.symbolics import Byref, IntDiv, xreplace_indices
 from devito.tools import as_mapper, as_tuple
 from devito.types import ConditionalDimension
 
@@ -182,7 +182,16 @@ def iet_insert_casts(iet, parameters):
     # appear in any Expression, that is, if the parameter is merely propagated
     # down to another Call, then there's no need to cast it
     exprs = FindNodes(Expression).visit(iet)
+    calls = FindNodes(Call).visit(iet)
     need_cast = {i for i in set().union(*[i.functions for i in exprs]) if i.is_Tensor}
+    need_cast.update({
+        i for i in set().union(*[i.arguments for i in calls])
+        if not isinstance(i, int) and not isinstance(i, Byref) and i.is_Tensor
+    })
+    need_cast.update({
+        i.function for i in set().union(*[i.arguments for i in calls])
+        if not isinstance(i, int) and not isinstance(i, Byref) and i.is_ArrayAccess
+    })
     need_cast.update({i for i in parameters if i.is_Array})
 
     casts = [ArrayCast(i) for i in parameters if i in need_cast]
