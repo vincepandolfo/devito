@@ -6,6 +6,7 @@ import cgen as c
 from mpmath.libmp import prec_to_dps, to_str
 from sympy import Function
 from sympy.printing.ccode import C99CodePrinter
+from devito.types.basic import SymbolicArray
 
 
 class Allocator(object):
@@ -77,6 +78,8 @@ class CodePrinter(C99CodePrinter):
         # There exist no unknown Functions
         if expr.func.__name__ not in self.known_functions:
             self.known_functions[expr.func.__name__] = expr.func.__name__
+        if isinstance(expr, SymbolicArray):
+            return expr.name + ''.join(['[' + str(x) + ']' for x in expr.indices])
         return super(CodePrinter, self)._print_Function(expr)
 
     def _print_CondEq(self, expr):
