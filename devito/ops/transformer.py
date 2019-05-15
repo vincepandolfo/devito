@@ -19,23 +19,24 @@ def opsit(trees, count):
     constants = []
     to_remove = []
     for tree in trees:
-        for exp in FindNodes(Expression).visit(tree.inner):
-            expressions.extend([
-                Expression(make_ops_ast(exp.expr, node_factory))
-            ])
+        expressions.extend(FindNodes(Expression).visit(tree.inner))
 
-            parameters |= set([f for f in exp.functions if not f.is_Constant])
-            constants.extend([f for f in exp.functions if f.is_Constant])
+    ops_expressions = []
 
-            if exp.is_scalar_assign:
-                to_remove.append(exp.write)
+    for i in reversed(expressions):
+        parameters |= set(i.functions)
+        ops_expressions.insert(0, Expression(make_ops_ast(i.expr, node_factory)))
+        constants.extend([c for c in i.functions if c.is_Constant])
+
+        if i.is_scalar_assign:
+            to_remove.append(i.write)
 
     parameters -= set(to_remove)
     arguments = set()
     to_remove = []
-    for exp in expressions:
-        func = [f for f in exp.functions
-                if f.name != "OPS_ACC_size" and not f.is_Constant]
+
+    for exp in ops_expressions:
+        func = [f for f in exp.functions if f.name != "OPS_ACC_size"]
         arguments |= set(func)
         if exp.is_scalar_assign:
             to_remove.append(exp.write)
@@ -44,9 +45,9 @@ def opsit(trees, count):
 
     callable_kernel = OPSKernel(
         namespace['ops_kernel'](count),
-        expressions,
+        ops_expressions,
         "void",
-        list(arguments)
+        sorted(arguments, key=lambda i: i.name)
     )
 
     const_declarations = [to_ops_const(c) for c in constants]
@@ -131,7 +132,7 @@ def to_ops_dat(function):
     ]
 
 
-def make_ops_ast(expr, nfops):
+def make_ops_ast(expr, nfops, is_Write=False):
     """
     Transform a devito expression into an OPS expression.
     Only the interested nodes are rebuilt.
@@ -151,6 +152,11 @@ def make_ops_ast(expr, nfops):
     if expr.is_Symbol or expr.is_Number:
         return expr
     elif expr.is_Indexed:
-        return nfops.new_ops_arg(expr)
+        return nfops.new_ops_arg(expr, is_Write)
+    elif expr.is_Equality:
+        return expr.func(
+            make_ops_ast(expr.lhs, nfops, True),
+            make_ops_ast(expr.rhs, nfops)
+        )
     else:
         return expr.func(*[make_ops_ast(i, nfops) for i in expr.args])
