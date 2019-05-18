@@ -1,15 +1,20 @@
 import cgen
 import numpy as np
 
+from collections import defaultdict
+
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import Call, Element, Expression, FindNodes, List
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.nodes import OPSKernel
 from devito.ops.types import OPSDat, FunctionTimeAccess
-from devito.ops.utils import namespace
+from devito.ops.utils import extend_accesses, get_accesses, namespace
 from devito.types.basic import Symbol, SymbolicArray, String
 from devito.symbolics.extended_sympy import Byref, ListInitializer
+
+OPS_WRITE = Symbol("OPS_WRITE")
+OPS_READ = Symbol("OPS_READ")
 
 
 def opsit(trees, count):
@@ -22,14 +27,18 @@ def opsit(trees, count):
         expressions.extend(FindNodes(Expression).visit(tree.inner))
 
     ops_expressions = []
+    accesses = defaultdict(set)
 
     for i in reversed(expressions):
+        extend_accesses(accesses, get_accesses(i.expr))
         parameters |= set(i.functions)
         ops_expressions.insert(0, Expression(make_ops_ast(i.expr, node_factory)))
         constants.extend([c for c in i.functions if c.is_Constant])
 
         if i.is_scalar_assign:
             to_remove.append(i.write)
+
+    print(accesses)
 
     parameters -= set(to_remove)
     arguments = set()
@@ -51,7 +60,7 @@ def opsit(trees, count):
     )
 
     const_declarations = [to_ops_const(c) for c in constants]
-    dat_declarations = [to_ops_dat(p) for p in parameters]
+    dat_declarations = [to_ops_dat(p) for p in parameters if p not in constants]
 
     return callable_kernel, const_declarations, List(body=dat_declarations)
 

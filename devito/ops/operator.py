@@ -18,6 +18,9 @@ class OperatorOPS(Operator):
     def _specialize_iet(self, iet, **kwargs):
         mapper = {}
 
+        self._includes.append('ops_seq.h')
+        self._headers.append('#define OPS_3D')
+
         global_const_declarations = []
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
             callable_kernel, const_declarations, par_loop_call_block = opsit(trees, n)
