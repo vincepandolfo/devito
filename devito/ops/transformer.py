@@ -38,8 +38,6 @@ def opsit(trees, count):
         if i.is_scalar_assign:
             to_remove.append(i.write)
 
-    print(accesses)
-
     parameters -= set(to_remove)
     arguments = set()
     to_remove = []
@@ -104,7 +102,7 @@ def to_ops_dat(function):
 
         for i in range(time_dims):
             access = FunctionTimeAccess(function, Symbol("%s%s" % (time_index, i)))
-            ops_dat = OPSDat("%s%s%s" % (function.name, time_index, i))
+            ops_dat = OPSDat("%s%s%s_dat" % (function.name, time_index, i))
             ops_decl_dat_call = Call(
                 "ops_decl_dat",
                 [
@@ -134,10 +132,15 @@ def to_ops_dat(function):
         dtype=np.int32
     )
 
+    ops_dat = OPSDat("%s_dat" % function.name)
+
     return [
         Expression(ClusterizedEq(Eq(base, ListInitializer([0 for i in function.shape])))),
         Expression(ClusterizedEq(Eq(dim, ListInitializer(function.shape)))),
-        Call("ops_decl_dat", [String("block"), function.ndim, dim, function])
+        Element(cgen.Initializer(
+            ops_dat,
+            Call("ops_decl_dat", [String("block"), function.ndim, dim, function]))
+        )
     ]
 
 
