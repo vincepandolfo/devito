@@ -47,7 +47,7 @@ def opsit(trees, count):
         namespace['ops_kernel'](count),
         ops_expressions,
         "void",
-        sorted(arguments, key=lambda i: i.name)
+        sorted(arguments, key=lambda i: (i.is_Constant, i.name))
     )
 
     const_declarations = [to_ops_const(c) for c in constants]
