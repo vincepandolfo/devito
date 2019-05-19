@@ -189,7 +189,8 @@ class Element(Node):
 
     def __init__(self, element):
         assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
-                                    c.Pragma, c.Line, c.Assign, c.POD))
+                                    c.InlineInitializer, c.Pragma, c.Line, c.Assign,
+                                    c.POD))
         self.element = element
 
     def __repr__(self):
@@ -197,7 +198,7 @@ class Element(Node):
 
     @property
     def functions(self):
-        if (isinstance(self.element, c.Initializer)
+        if (isinstance(self.element, c.InlineInitializer)
                 and hasattr(self.element.data, 'functions')):
             return self.element.data.functions
 
@@ -205,7 +206,7 @@ class Element(Node):
 
     @property
     def free_symbols(self):
-        if (isinstance(self.element, c.Initializer)
+        if (isinstance(self.element, c.InlineInitializer)
                 and hasattr(self.element.data, 'free_symbols')):
             return self.element.data.free_symbols
 
@@ -213,14 +214,14 @@ class Element(Node):
 
     @property
     def defines(self):
-        if isinstance(self.element, c.Initializer):
+        if isinstance(self.element, c.InlineInitializer):
             return self.element.vdecl
 
         return []
 
     @property
     def children(self):
-        if (isinstance(self.element, c.Initializer)
+        if (isinstance(self.element, c.InlineInitializer)
                 and isinstance(self.element.data, Node)):
             return [self.element.data]
 

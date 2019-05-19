@@ -36,7 +36,7 @@ def opsit(trees, count):
             it_dims = len(tree)
 
     block = OPSBlock(namespace['ops_block'](count))
-    block_init = Element(cgen.Initializer(
+    block_init = Element(cgen.InlineInitializer(
         block,
         Call("ops_decl_block", [it_dims, String(block.name)])
     ))
@@ -131,12 +131,14 @@ def get_ops_args(args, stencils, name_to_dat):
     for arg in args:
         ops_arg = OPSArg("%s_arg" % arg.name)
         ops_args.append(ops_arg)
-        ops_args_inits.append(Element(cgen.Initializer(ops_arg, Call("ops_arg_dat", [
-            name_to_dat[arg.name],
-            stencils[arg.name],
-            String(dtype_to_cstr(arg.dtype)),
-            OPS_WRITE if arg.is_Write else OPS_READ
-        ]))))
+        ops_args_inits.append(Element(
+            cgen.InlineInitializer(ops_arg, Call("ops_arg_dat", [
+                name_to_dat[arg.name],
+                stencils[arg.name],
+                String(dtype_to_cstr(arg.dtype)),
+                OPS_WRITE if arg.is_Write else OPS_READ
+            ])))
+        )
 
     return ops_args_inits, ops_args
 
@@ -194,7 +196,7 @@ def to_ops_dat(function, block):
                 ]
             )
             dats.append(ops_dat)
-            res.append(Element(cgen.Initializer(ops_dat, ops_decl_dat_call)))
+            res.append(Element(cgen.InlineInitializer(ops_dat, ops_decl_dat_call)))
 
         return res, dats
 
@@ -203,7 +205,7 @@ def to_ops_dat(function, block):
     return [
         Expression(ClusterizedEq(Eq(base, ListInitializer([0 for i in function.shape])))),
         Expression(ClusterizedEq(Eq(dim, ListInitializer(function.shape)))),
-        Element(cgen.Initializer(
+        Element(cgen.InlineInitializer(
             ops_dat,
             Call("ops_decl_dat", [String("block"), function.ndim, dim, function]))
         )

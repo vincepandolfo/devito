@@ -92,7 +92,7 @@ def generate_ops_stencils(accesses):
         ])
         ops_stencils_symbols[f] = ops_stencil
         ops_stencils_initializers.append(
-            Element(cgen.Initializer(ops_stencil, decl_call))
+            Element(cgen.InlineInitializer(ops_stencil, decl_call))
         )
 
     return ops_stencils_initializers, ops_stencils_symbols
