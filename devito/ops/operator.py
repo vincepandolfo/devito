@@ -35,7 +35,6 @@ class OperatorOPS(Operator):
 
         warning("The OPS backend is still work-in-progress")
 
-        print(global_const_declarations)
         global_const_declarations.append(Transformer(mapper).visit(iet))
 
         return List(body=[ops_init, *global_const_declarations, ops_exit])
