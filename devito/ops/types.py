@@ -46,3 +46,10 @@ class OPSDat(basic.Symbol):
 
     def get_decl_pair(self):
         return ["ops_dat"], self.name
+
+
+class OPSStencil(basic.Symbol):
+    is_Symbol = True
+
+    def get_decl_pair(self):
+        return ["ops_stencil"], self.name

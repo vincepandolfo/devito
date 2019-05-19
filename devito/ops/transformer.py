@@ -9,7 +9,8 @@ from devito.ir.iet import Call, Element, Expression, FindNodes, List
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.nodes import OPSKernel
 from devito.ops.types import OPSDat, FunctionTimeAccess
-from devito.ops.utils import extend_accesses, get_accesses, namespace
+from devito.ops.utils import (extend_accesses, generate_ops_stencils, get_accesses,
+                              namespace)
 from devito.types.basic import Symbol, SymbolicArray, String
 from devito.symbolics.extended_sympy import Byref, ListInitializer
 
@@ -38,6 +39,8 @@ def opsit(trees, count):
         if i.is_scalar_assign:
             to_remove.append(i.write)
 
+    ops_stencils_initializers, ops_stencils = generate_ops_stencils(accesses)
+
     parameters -= set(to_remove)
     arguments = set()
     to_remove = []
@@ -60,7 +63,7 @@ def opsit(trees, count):
     const_declarations = [to_ops_const(c) for c in constants]
     dat_declarations = [to_ops_dat(p) for p in parameters if p not in constants]
 
-    return callable_kernel, const_declarations, List(body=dat_declarations)
+    return callable_kernel, ops_stencils_initializers + const_declarations, List(body=dat_declarations)
 
 
 def to_ops_const(function):

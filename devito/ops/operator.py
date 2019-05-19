@@ -1,7 +1,7 @@
 from devito.logger import warning
 from devito.ir.iet import (iet_insert_casts, iet_insert_decls, find_affine_trees,
                            Transformer)
-from devito.ir.iet.nodes import List, MetaCall
+from devito.ir.iet.nodes import Call, List, MetaCall
 from devito.operator import Operator
 from devito.ops.nodes import OPSKernel
 from devito.ops.transformer import opsit
@@ -21,6 +21,9 @@ class OperatorOPS(Operator):
         self._includes.append('ops_seq.h')
         self._headers.append('#define OPS_3D')
 
+        ops_init = Call("ops_init", [0, 0, 1])
+        ops_exit = Call("ops_exit")
+
         global_const_declarations = []
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
             callable_kernel, const_declarations, par_loop_call_block = opsit(trees, n)
@@ -32,9 +35,10 @@ class OperatorOPS(Operator):
 
         warning("The OPS backend is still work-in-progress")
 
+        print(global_const_declarations)
         global_const_declarations.append(Transformer(mapper).visit(iet))
 
-        return List(body=global_const_declarations)
+        return List(body=[ops_init, *global_const_declarations, ops_exit])
 
     def _finalize(self, iet, parameters):
         iet = iet_insert_decls(iet, parameters)
