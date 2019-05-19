@@ -102,7 +102,6 @@ def opsit(trees, count):
     ops_args_inits, ops_args = get_ops_args(
         [a for a in arguments if not a.is_Constant], ops_stencils, argname_to_dat
     )
-    print(ops_args_inits)
 
     par_loop = Call("ops_par_loop", [
         FunctionPointer(callable_kernel.name),
@@ -115,7 +114,6 @@ def opsit(trees, count):
 
     dat_declarations.extend(ops_args_inits)
     dat_declarations.append(par_loop)
-    print(dat_declarations)
 
     return (
         callable_kernel,
