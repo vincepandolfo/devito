@@ -37,8 +37,6 @@ class OperatorOPS(Operator):
 
         global_declarations.append(Transformer(mapper).visit(iet))
 
-        print(global_declarations)
-
         return List(body=[ops_init, *global_declarations, ops_exit])
 
     def _finalize(self, iet, parameters):

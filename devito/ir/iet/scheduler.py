@@ -186,11 +186,13 @@ def iet_insert_casts(iet, parameters):
     need_cast = {i for i in set().union(*[i.functions for i in exprs]) if i.is_Tensor}
     need_cast.update({
         i for i in set().union(*[i.arguments for i in calls])
-        if not isinstance(i, int) and not isinstance(i, Byref) and i.is_Tensor
+        if not isinstance(i, Call) and
+        not isinstance(i, int) and not isinstance(i, Byref) and i.is_Tensor
     })
     need_cast.update({
         i.function for i in set().union(*[i.arguments for i in calls])
-        if not isinstance(i, int) and not isinstance(i, Byref) and i.is_ArrayAccess
+        if not isinstance(i, Call) and
+        not isinstance(i, int) and not isinstance(i, Byref) and i.is_ArrayAccess
     })
     need_cast.update({i for i in parameters if i.is_Array})
 

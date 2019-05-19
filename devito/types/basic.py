@@ -65,6 +65,7 @@ class Basic(object):
     is_Object = False
     is_LocalObject = False
     is_StringLiteral = False
+    is_FunctionPointer = False
 
     # Created by the user
     is_Input = False
@@ -201,6 +202,14 @@ class String(Basic):
 
     def __init__(self, value):
         self.value = value
+
+
+class FunctionPointer(Basic):
+
+    is_FunctionPointer = True
+
+    def __init__(self, fname):
+        self.fname = fname
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable):

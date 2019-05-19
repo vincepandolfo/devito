@@ -18,7 +18,7 @@ from devito.symbolics import FunctionFromPointer, as_symbol
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           validate_type, dtype_to_cstr)
 from devito.types import Symbol, Indexed
-from devito.types.basic import String, AbstractFunction
+from devito.types.basic import FunctionPointer, String, AbstractFunction
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call', 'Conditional',
            'Iteration', 'List', 'LocalExpression', 'Section', 'TimedList', 'Prodder',
@@ -248,7 +248,8 @@ class Call(Simple, Node):
     def free_symbols(self):
         free = set()
         for i in self.arguments:
-            if isinstance(i, numbers.Number) or isinstance(i, String):
+            if (isinstance(i, numbers.Number) or
+                    isinstance(i, String) or isinstance(i, FunctionPointer)):
                 continue
             elif isinstance(i, AbstractFunction):
                 free.add(i)

@@ -60,3 +60,10 @@ class OPSBlock(basic.Symbol):
 
     def get_decl_pair(self):
         return ["ops_block"], self.name
+
+
+class OPSArg(basic.Symbol):
+    is_Symbol = True
+
+    def get_decl_pair(self):
+        return ["ops_arg"], self.name

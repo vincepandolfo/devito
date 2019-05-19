@@ -8,14 +8,15 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import Call, Element, Expression, FindNodes, IterationTree, List
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.nodes import OPSKernel
-from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess
+from devito.ops.types import OPSArg, OPSBlock, OPSDat, FunctionTimeAccess
 from devito.ops.utils import (extend_accesses, generate_ops_stencils, get_accesses,
                               namespace)
-from devito.types.basic import Symbol, SymbolicArray, String
+from devito.tools import dtype_to_cstr
+from devito.types.basic import FunctionPointer, Symbol, SymbolicArray, String
 from devito.symbolics.extended_sympy import Byref, ListInitializer
 
-OPS_WRITE = Symbol("OPS_WRITE")
-OPS_READ = Symbol("OPS_READ")
+OPS_WRITE = FunctionPointer("OPS_WRITE")
+OPS_READ = FunctionPointer("OPS_READ")
 
 
 def opsit(trees, count):
@@ -65,22 +66,81 @@ def opsit(trees, count):
             to_remove.append(exp.write)
 
     arguments -= set(to_remove)
+    arguments = sorted(arguments, key=lambda i: (i.is_Constant, i.name))
 
     callable_kernel = OPSKernel(
         namespace['ops_kernel'](count),
         ops_expressions,
         "void",
-        sorted(arguments, key=lambda i: (i.is_Constant, i.name))
+        arguments
     )
 
     const_declarations = [to_ops_const(c) for c in constants]
-    dat_declarations = [to_ops_dat(p, block) for p in parameters if p not in constants]
+    dat_declarations = []
+    argname_to_dat = {}
+
+    for p in parameters:
+        if p.is_Constant:
+            continue
+
+        dat_dec, dat_sym = to_ops_dat(p, block)
+        dat_declarations.extend(dat_dec)
+
+        for dat in dat_sym:
+            argname_to_dat[dat.name.replace("_dat", "")] = dat
+
+    par_loop_range_arr = SymbolicArray(
+        name=namespace['ops_range'](count),
+        dimensions=(len(it_range),),
+        dtype=np.int32
+    )
+    par_loop_range_init = Expression(ClusterizedEq(Eq(
+        par_loop_range_arr,
+        ListInitializer([mx - mn for mn, mx in it_range])
+    )))
+
+    ops_args_inits, ops_args = get_ops_args(
+        [a for a in arguments if not a.is_Constant], ops_stencils, argname_to_dat
+    )
+    print(ops_args_inits)
+
+    par_loop = Call("ops_par_loop", [
+        FunctionPointer(callable_kernel.name),
+        String(callable_kernel.name),
+        block,
+        it_dims,
+        par_loop_range_arr,
+        *ops_args
+    ])
+
+    dat_declarations.extend(ops_args_inits)
+    dat_declarations.append(par_loop)
+    print(dat_declarations)
 
     return (
         callable_kernel,
-        [block_init] + ops_stencils_initializers + const_declarations,
+        [par_loop_range_init, block_init] +
+        ops_stencils_initializers +
+        const_declarations,
         List(body=dat_declarations)
     )
+
+
+def get_ops_args(args, stencils, name_to_dat):
+    ops_args_inits = []
+    ops_args = []
+
+    for arg in args:
+        ops_arg = OPSArg("%s_arg" % arg.name)
+        ops_args.append(ops_arg)
+        ops_args_inits.append(Element(cgen.Initializer(ops_arg, Call("ops_arg_dat", [
+            name_to_dat[arg.name],
+            stencils[arg.name],
+            String(dtype_to_cstr(arg.dtype)),
+            OPS_WRITE if arg.is_Write else OPS_READ
+        ]))))
+
+    return ops_args_inits, ops_args
 
 
 def to_ops_const(function):
@@ -92,33 +152,32 @@ def to_ops_const(function):
 
 
 def to_ops_dat(function, block):
+    ndim = function.ndim - (1 if function.is_TimeFunction else 0)
+    dim = SymbolicArray(
+        name="%s_dim" % function.name,
+        dimensions=(ndim,),
+        dtype=np.int32
+    )
+
+    base = SymbolicArray(
+        name="%s_base" % function.name,
+        dimensions=(ndim,),
+        dtype=np.int32
+    )
+
     if function.is_TimeFunction:
         res = []
         time_pos = function._time_position
         time_index = function.indices[time_pos]
         time_dims = function.shape[time_pos]
 
-        dim = SymbolicArray(
-            name="%s_dim" % function.name,
-            dimensions=(function.ndim - 1,),
-            dtype=np.int32
-        )
         dim_shape = function.shape[:time_pos] + function.shape[time_pos + 1:]
-        base = SymbolicArray(
-            name="%s_base" % function.name,
-            dimensions=(function.ndim - 1,),
-            dtype=np.int32
-        )
+        base_val = [0 for i in range(ndim)]
 
-        base_val = [0 for i in range(function.ndim - 1)]
         res.append(Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_shape)))))
-        res.append(
-            Expression(
-                ClusterizedEq(Eq(
-                    base,
-                    ListInitializer(base_val)
-                )))
-        )
+        res.append(Expression(ClusterizedEq(Eq(base, ListInitializer(base_val)))))
+
+        dats = []
 
         for i in range(time_dims):
             access = FunctionTimeAccess(function, Symbol("%s%s" % (time_index, i)))
@@ -136,21 +195,10 @@ def to_ops_dat(function, block):
                     String("%s%s%s" % (function.name, time_index, i))
                 ]
             )
+            dats.append(ops_dat)
             res.append(Element(cgen.Initializer(ops_dat, ops_decl_dat_call)))
 
-        return res
-
-    dim = SymbolicArray(
-        name="%s_dim" % function.name,
-        dimensions=(function.ndim,),
-        dtype=np.int32
-    )
-
-    base = SymbolicArray(
-        name="%s_base" % function.name,
-        dimensions=(function.ndim,),
-        dtype=np.int32
-    )
+        return res, dats
 
     ops_dat = OPSDat("%s_dat" % function.name)
 
@@ -161,7 +209,7 @@ def to_ops_dat(function, block):
             ops_dat,
             Call("ops_decl_dat", [String("block"), function.ndim, dim, function]))
         )
-    ]
+    ], (ops_dat,)
 
 
 def make_ops_ast(expr, nfops, is_Write=False):
