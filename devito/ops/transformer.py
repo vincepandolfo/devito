@@ -5,10 +5,10 @@ from collections import defaultdict
 
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import Call, Element, Expression, FindNodes, List
+from devito.ir.iet import Call, Element, Expression, FindNodes, IterationTree, List
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.nodes import OPSKernel
-from devito.ops.types import OPSDat, FunctionTimeAccess
+from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess
 from devito.ops.utils import (extend_accesses, generate_ops_stencils, get_accesses,
                               namespace)
 from devito.types.basic import Symbol, SymbolicArray, String
@@ -26,6 +26,19 @@ def opsit(trees, count):
     to_remove = []
     for tree in trees:
         expressions.extend(FindNodes(Expression).visit(tree.inner))
+
+    it_range = []
+    it_dims = 0
+    for tree in trees:
+        if isinstance(tree, IterationTree):
+            it_range = [it.bounds() for it in tree]
+            it_dims = len(tree)
+
+    block = OPSBlock(namespace['ops_block'](count))
+    block_init = Element(cgen.Initializer(
+        block,
+        Call("ops_decl_block", [it_dims, String(block.name)])
+    ))
 
     ops_expressions = []
     accesses = defaultdict(set)
@@ -61,9 +74,13 @@ def opsit(trees, count):
     )
 
     const_declarations = [to_ops_const(c) for c in constants]
-    dat_declarations = [to_ops_dat(p) for p in parameters if p not in constants]
+    dat_declarations = [to_ops_dat(p, block) for p in parameters if p not in constants]
 
-    return callable_kernel, ops_stencils_initializers + const_declarations, List(body=dat_declarations)
+    return (
+        callable_kernel,
+        [block_init] + ops_stencils_initializers + const_declarations,
+        List(body=dat_declarations)
+    )
 
 
 def to_ops_const(function):
@@ -74,7 +91,7 @@ def to_ops_const(function):
     )
 
 
-def to_ops_dat(function):
+def to_ops_dat(function, block):
     if function.is_TimeFunction:
         res = []
         time_pos = function._time_position
@@ -109,7 +126,7 @@ def to_ops_dat(function):
             ops_decl_dat_call = Call(
                 "ops_decl_dat",
                 [
-                    String("block"),  # TODO: this is a placeholder
+                    block,
                     dim,
                     base,
                     base,

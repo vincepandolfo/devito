@@ -201,17 +201,30 @@ class Element(Node):
                 and hasattr(self.element.data, 'functions')):
             return self.element.data.functions
 
+        return []
+
     @property
     def free_symbols(self):
         if (isinstance(self.element, c.Initializer)
                 and hasattr(self.element.data, 'free_symbols')):
             return self.element.data.free_symbols
 
+        return []
+
+    @property
+    def defines(self):
+        if isinstance(self.element, c.Initializer):
+            return self.element.vdecl
+
+        return []
+
     @property
     def children(self):
         if (isinstance(self.element, c.Initializer)
                 and isinstance(self.element.data, Node)):
             return [self.element.data]
+
+        return []
 
 
 class Call(Simple, Node):

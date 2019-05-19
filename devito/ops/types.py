@@ -53,3 +53,10 @@ class OPSStencil(basic.Symbol):
 
     def get_decl_pair(self):
         return ["ops_stencil"], self.name
+
+
+class OPSBlock(basic.Symbol):
+    is_Symbol = True
+
+    def get_decl_pair(self):
+        return ["ops_block"], self.name

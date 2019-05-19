@@ -24,10 +24,10 @@ class OperatorOPS(Operator):
         ops_init = Call("ops_init", [0, 0, 1])
         ops_exit = Call("ops_exit")
 
-        global_const_declarations = []
+        global_declarations = []
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
-            callable_kernel, const_declarations, par_loop_call_block = opsit(trees, n)
-            global_const_declarations.extend(const_declarations)
+            callable_kernel, declarations, par_loop_call_block = opsit(trees, n)
+            global_declarations.extend(declarations)
 
             self._func_table[callable_kernel.name] = MetaCall(callable_kernel, True)
             mapper[trees[0].root] = par_loop_call_block
@@ -35,9 +35,11 @@ class OperatorOPS(Operator):
 
         warning("The OPS backend is still work-in-progress")
 
-        global_const_declarations.append(Transformer(mapper).visit(iet))
+        global_declarations.append(Transformer(mapper).visit(iet))
 
-        return List(body=[ops_init, *global_const_declarations, ops_exit])
+        print(global_declarations)
+
+        return List(body=[ops_init, *global_declarations, ops_exit])
 
     def _finalize(self, iet, parameters):
         iet = iet_insert_decls(iet, parameters)

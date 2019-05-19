@@ -528,6 +528,7 @@ class FindSymbols(Visitor):
 
     visit_ArrayCast = visit_Expression
     visit_Call = visit_Expression
+    visit_Element = visit_Expression
 
 
 class FindNodes(Visitor):
