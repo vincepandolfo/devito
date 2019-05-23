@@ -234,9 +234,10 @@ class Call(Simple, Node):
 
     is_Call = True
 
-    def __init__(self, name, arguments=None):
+    def __init__(self, name, arguments=None, semicolon=True):
         self.name = name
         self.arguments = as_tuple(arguments)
+        self.semicolon = semicolon
 
     def __repr__(self):
         return "Call::\n\t%s(...)" % self.name
@@ -249,8 +250,7 @@ class Call(Simple, Node):
     def free_symbols(self):
         free = set()
         for i in self.arguments:
-            if (isinstance(i, numbers.Number) or
-                    isinstance(i, String) or isinstance(i, FunctionPointer)):
+            if isinstance(i, (numbers.Number, String, FunctionPointer, Call)):
                 continue
             elif isinstance(i, AbstractFunction):
                 free.add(i)
@@ -263,6 +263,10 @@ class Call(Simple, Node):
     @property
     def defines(self):
         return ()
+
+    @property
+    def children(self):
+        return [c for c in self.arguments if isinstance(c, Call)]
 
 
 class Expression(Simple, Node):

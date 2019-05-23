@@ -8,10 +8,11 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import Call, Element, Expression, FindNodes, IterationTree, List
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.nodes import OPSKernel
-from devito.ops.types import OPSArg, OPSBlock, OPSDat, FunctionTimeAccess
+from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess
 from devito.ops.utils import (extend_accesses, generate_ops_stencils, get_accesses,
                               namespace)
 from devito.tools import dtype_to_cstr
+from devito.types import Constant
 from devito.types.basic import FunctionPointer, Symbol, SymbolicArray, String
 from devito.symbolics.extended_sympy import Byref, ListInitializer
 
@@ -23,7 +24,6 @@ def opsit(trees, count):
     node_factory = OPSNodeFactory()
     expressions = []
     parameters = set()
-    constants = []
     to_remove = []
     for tree in trees:
         expressions.extend(FindNodes(Expression).visit(tree.inner))
@@ -48,7 +48,6 @@ def opsit(trees, count):
         extend_accesses(accesses, get_accesses(i.expr))
         parameters |= set(i.functions)
         ops_expressions.insert(0, Expression(make_ops_ast(i.expr, node_factory)))
-        constants.extend([c for c in i.functions if c.is_Constant])
 
         if i.is_scalar_assign:
             to_remove.append(i.write)
@@ -75,7 +74,6 @@ def opsit(trees, count):
         arguments
     )
 
-    const_declarations = [to_ops_const(c) for c in constants]
     dat_declarations = []
     argname_to_dat = {}
 
@@ -91,16 +89,20 @@ def opsit(trees, count):
 
     par_loop_range_arr = SymbolicArray(
         name=namespace['ops_range'](count),
-        dimensions=(len(it_range),),
+        dimensions=(len(it_range) * 2,),
         dtype=np.int32
     )
+    range_vals = []
+    for mn, mx in it_range:
+        range_vals.append(mx - mn)
+        range_vals.append(mx)
     par_loop_range_init = Expression(ClusterizedEq(Eq(
         par_loop_range_arr,
-        ListInitializer([mx - mn for mn, mx in it_range])
+        ListInitializer(range_vals)
     )))
 
-    ops_args_inits, ops_args = get_ops_args(
-        [a for a in arguments if not a.is_Constant], ops_stencils, argname_to_dat
+    ops_args = get_ops_args(
+        [a for a in arguments], ops_stencils, argname_to_dat
     )
 
     par_loop = Call("ops_par_loop", [
@@ -112,43 +114,46 @@ def opsit(trees, count):
         *ops_args
     ])
 
-    dat_declarations.extend(ops_args_inits)
     dat_declarations.append(par_loop)
 
     return (
         callable_kernel,
         [par_loop_range_init, block_init] +
-        ops_stencils_initializers +
-        const_declarations,
+        ops_stencils_initializers,
         List(body=dat_declarations)
     )
 
 
 def get_ops_args(args, stencils, name_to_dat):
-    ops_args_inits = []
     ops_args = []
 
     for arg in args:
-        ops_arg = OPSArg("%s_arg" % arg.name)
-        ops_args.append(ops_arg)
-        ops_args_inits.append(Element(
-            cgen.InlineInitializer(ops_arg, Call("ops_arg_dat", [
-                name_to_dat[arg.name],
-                stencils[arg.name],
-                String(dtype_to_cstr(arg.dtype)),
-                OPS_WRITE if arg.is_Write else OPS_READ
-            ])))
-        )
+        if arg.is_Constant:
+            ops_args.append(
+                Call(
+                    "ops_arg_gbl",
+                    [
+                        Byref(Constant(name=arg.name[1:])),
+                        1,
+                        String(dtype_to_cstr(arg.dtype)),
+                        OPS_READ
+                    ], False
+                )
+            )
+        else:
+            ops_args.append(
+                Call(
+                    "ops_arg_dat",
+                    [
+                        name_to_dat[arg.name],
+                        1,
+                        stencils[arg.name],
+                        String(dtype_to_cstr(arg.dtype)),
+                        OPS_WRITE if arg.is_Write else OPS_READ
+                    ], False)
+            )
 
-    return ops_args_inits, ops_args
-
-
-def to_ops_const(function):
-    return Call(
-        "ops_decl_const", [
-            String(function.name), 1, String(function._C_typedata), Byref(function),
-        ]
-    )
+    return ops_args
 
 
 def to_ops_dat(function, block):
@@ -186,6 +191,7 @@ def to_ops_dat(function, block):
                 "ops_decl_dat",
                 [
                     block,
+                    1,
                     dim,
                     base,
                     base,
@@ -229,7 +235,11 @@ def make_ops_ast(expr, nfops, is_Write=False):
         Expression alredy translated to OPS syntax.
     """
 
-    if expr.is_Symbol or expr.is_Number:
+    if expr.is_Symbol:
+        if expr.is_Constant:
+            return nfops.new_ops_gbl(expr)
+        return expr
+    elif expr.is_Number:
         return expr
     elif expr.is_Indexed:
         return nfops.new_ops_arg(expr, is_Write)

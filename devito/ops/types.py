@@ -1,4 +1,7 @@
+from devito.tools import dtype_to_cstr
+
 import devito.types.basic as basic
+import devito.types.constant as constant
 
 __all__ = ['Array']
 
@@ -67,3 +70,15 @@ class OPSArg(basic.Symbol):
 
     def get_decl_pair(self):
         return ["ops_arg"], self.name
+
+
+class ConstantDereference(constant.Constant):
+
+    @property
+    def _C_name(self):
+        return '*%s' % self.name
+
+    @property
+    def _C_typename(self):
+        return '%s%s*' % ('const ' if self.is_const else '',
+                          dtype_to_cstr(self.dtype))

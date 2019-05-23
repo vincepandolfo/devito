@@ -4,7 +4,7 @@ from devito import Dimension, TimeFunction
 from devito.ops.types import Array
 from devito.ops.utils import namespace
 from devito.symbolics import Macro, split_affine
-from devito.types import Indexed
+from devito.types import Constant, Indexed
 
 
 class OPSNodeFactory(object):
@@ -62,3 +62,6 @@ class OPSNodeFactory(object):
         new_indexed = Indexed(ops_arg.indexed, access_macro)
 
         return new_indexed
+
+    def new_ops_gbl(self, c):
+        return Constant(name='*%s' % c.name, dtype=c.dtype)
