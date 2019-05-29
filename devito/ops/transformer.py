@@ -12,9 +12,9 @@ from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess
 from devito.ops.utils import (extend_accesses, generate_ops_stencils, get_accesses,
                               namespace)
 from devito.tools import dtype_to_cstr
-from devito.types import Constant
+from devito.types import Constant, Indexed
 from devito.types.basic import FunctionPointer, Symbol, SymbolicArray, String
-from devito.symbolics.extended_sympy import Byref, ListInitializer
+from devito.symbolics.extended_sympy import Macro, Byref, ListInitializer
 
 OPS_WRITE = FunctionPointer("OPS_WRITE")
 OPS_READ = FunctionPointer("OPS_READ")
@@ -66,6 +66,12 @@ def opsit(trees, count):
 
     arguments -= set(to_remove)
     arguments = sorted(arguments, key=lambda i: (i.is_Constant, i.name))
+
+    ops_expressions = [
+        Expression(
+            fix_ops_acc(e.expr, [a.name for a in arguments])
+        ) for e in ops_expressions
+    ]
 
     callable_kernel = OPSKernel(
         namespace['ops_kernel'](count),
@@ -250,3 +256,16 @@ def make_ops_ast(expr, nfops, is_Write=False):
         )
     else:
         return expr.func(*[make_ops_ast(i, nfops) for i in expr.args])
+
+
+def fix_ops_acc(expr, args):
+    if expr.is_Symbol or expr.is_Number:
+        return expr
+    if expr.is_Indexed:
+        return Indexed(
+            expr.base,
+            Macro('OPS_ACC%d(%s)' % (args.index(expr.name), expr.indices[0].name))
+        )
+    else:
+        for i in expr.args:
+            return expr.func(*[fix_ops_acc(i, args) for i in expr.args])

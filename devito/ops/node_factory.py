@@ -54,9 +54,7 @@ class OPSNodeFactory(object):
             indexed.indices) if i != TimeFunction._time_position]
 
         # Define the Macro used in OPS arg index
-        access_macro = Macro('OPS_ACC%d(%s)' % (list(self.ops_args).index(ops_arg_id),
-                                                ','.join(str(split_affine(i).shift)
-                                                         for i in space_indices)))
+        access_macro = Macro(','.join(str(split_affine(i).shift) for i in space_indices))
 
         # Create Indexed object representing the OPS arg access
         new_indexed = Indexed(ops_arg.indexed, access_macro)
