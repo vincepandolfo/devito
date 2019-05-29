@@ -14,13 +14,16 @@ class OperatorOPS(Operator):
     """
     A special Operator generating and executing OPS code.
     """
-    _header_functions = []
+
+    def __init__(self, *args, **kwargs):
+        self._header_functions = []
+        super().__init__(*args, **kwargs)
 
     def _specialize_iet(self, iet, **kwargs):
         mapper = {}
 
         self._includes.append('ops_seq.h')
-        self._headers.append('#define OPS_3D')
+        self._headers.append('#define OPS_2D')
 
         ops_init = Call("ops_init", [0, 0, 1])
         ops_exit = Call("ops_exit")
