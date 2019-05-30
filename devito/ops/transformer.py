@@ -176,6 +176,18 @@ def to_ops_dat(function, block):
         dtype=np.int32
     )
 
+    d_p = SymbolicArray(
+        name="%s_d_p" % function.name,
+        dimensions=(ndim,),
+        dtype=np.int32
+    )
+
+    d_m = SymbolicArray(
+        name="%s_d_m" % function.name,
+        dimensions=(ndim,),
+        dtype=np.int32
+    )
+
     if function.is_TimeFunction:
         res = []
         time_pos = function._time_position
@@ -183,10 +195,19 @@ def to_ops_dat(function, block):
         time_dims = function.shape[time_pos]
 
         dim_shape = function.shape[:time_pos] + function.shape[time_pos + 1:]
+        padding = function.padding[:time_pos] + function.padding[time_pos + 1:]
+        halo = function.halo[:time_pos] + function.halo[time_pos + 1:]
         base_val = [0 for i in range(ndim)]
+        d_p_val = tuple([p[0] + h[0] for p, h in zip(padding, halo)])
+        d_m_val = tuple([-(p[1] + h[1]) for p, h in zip(padding, halo)])
+        dim_shape = tuple([
+            sum(p) + sum(h) + dim for p, h, dim in zip(padding, halo, dim_shape)
+        ])
 
         res.append(Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_shape)))))
         res.append(Expression(ClusterizedEq(Eq(base, ListInitializer(base_val)))))
+        res.append(Expression(ClusterizedEq(Eq(d_p, ListInitializer(d_p_val)))))
+        res.append(Expression(ClusterizedEq(Eq(d_m, ListInitializer(d_m_val)))))
 
         dats = []
 
@@ -200,8 +221,8 @@ def to_ops_dat(function, block):
                     1,
                     dim,
                     base,
-                    base,
-                    base,
+                    d_m,
+                    d_p,
                     access,
                     String(function._C_typedata),
                     String("%s%s%s" % (function.name, time_index, i))
