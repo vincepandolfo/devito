@@ -100,7 +100,7 @@ def opsit(trees, count):
     )
     range_vals = []
     for mn, mx in it_range:
-        range_vals.append(mx - mn)
+        range_vals.append(mn)
         range_vals.append(mx)
     par_loop_range_init = Expression(ClusterizedEq(Eq(
         par_loop_range_arr,
@@ -188,8 +188,11 @@ def to_ops_dat(function, block):
         dtype=np.int32
     )
 
+    res = []
+    dats = []
+    ops_decl_dat_call = []
+
     if function.is_TimeFunction:
-        res = []
         time_pos = function._time_position
         time_index = function.indices[time_pos]
         time_dims = function.shape[time_pos]
@@ -204,17 +207,10 @@ def to_ops_dat(function, block):
             sum(p) + sum(h) + dim for p, h, dim in zip(padding, halo, dim_shape)
         ])
 
-        res.append(Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_shape)))))
-        res.append(Expression(ClusterizedEq(Eq(base, ListInitializer(base_val)))))
-        res.append(Expression(ClusterizedEq(Eq(d_p, ListInitializer(d_p_val)))))
-        res.append(Expression(ClusterizedEq(Eq(d_m, ListInitializer(d_m_val)))))
-
-        dats = []
-
         for i in range(time_dims):
             access = FunctionTimeAccess(function, Symbol("%s%s" % (time_index, i)))
             ops_dat = OPSDat("%s%s%s_dat" % (function.name, time_index, i))
-            ops_decl_dat_call = Call(
+            call = Call(
                 "ops_decl_dat",
                 [
                     block,
@@ -229,20 +225,43 @@ def to_ops_dat(function, block):
                 ]
             )
             dats.append(ops_dat)
-            res.append(Element(cgen.InlineInitializer(ops_dat, ops_decl_dat_call)))
+            ops_decl_dat_call.append(
+                Element(cgen.InlineInitializer(ops_dat, call))
+            )
+    else:
+        ops_dat = OPSDat("%s_dat" % function.name)
+        dats.append(ops_dat)
 
-        return res, dats
+        d_p_val = tuple([p[0] + h[0] for p, h in zip(function.padding, function.halo)])
+        d_m_val = tuple([-(p[1] + h[1]) for p, h in zip(function.padding, function.halo)])
+        dim_shape = tuple([
+            sum(p) + sum(h) + dim
+            for p, h, dim in zip(function.padding, function.halo, function.shape)
+        ])
+        base_val = [0 for i in function.shape]
 
-    ops_dat = OPSDat("%s_dat" % function.name)
+        ops_decl_dat_call.append(Element(cgen.InlineInitializer(ops_dat, Call(
+            "ops_decl_dat",
+            [
+                block,
+                1,
+                dim,
+                base,
+                d_m,
+                d_p,
+                function,
+                String(function._C_typedata),
+                String(function.name)
+            ]
+        ))))
 
-    return [
-        Expression(ClusterizedEq(Eq(base, ListInitializer([0 for i in function.shape])))),
-        Expression(ClusterizedEq(Eq(dim, ListInitializer(function.shape)))),
-        Element(cgen.InlineInitializer(
-            ops_dat,
-            Call("ops_decl_dat", [String("block"), function.ndim, dim, function]))
-        )
-    ], (ops_dat,)
+    res.append(Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_shape)))))
+    res.append(Expression(ClusterizedEq(Eq(base, ListInitializer(base_val)))))
+    res.append(Expression(ClusterizedEq(Eq(d_p, ListInitializer(d_p_val)))))
+    res.append(Expression(ClusterizedEq(Eq(d_m, ListInitializer(d_m_val)))))
+    res.extend(ops_decl_dat_call)
+
+    return res, dats
 
 
 def make_ops_ast(expr, nfops, is_Write=False):
