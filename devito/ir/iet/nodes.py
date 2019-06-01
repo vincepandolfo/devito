@@ -189,8 +189,7 @@ class Element(Node):
 
     def __init__(self, element):
         assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
-                                    c.InlineInitializer, c.Pragma, c.Line, c.Assign,
-                                    c.POD))
+                                    c.Pragma, c.Line, c.Assign, c.POD))
         self.element = element
 
     def __repr__(self):
@@ -198,7 +197,7 @@ class Element(Node):
 
     @property
     def functions(self):
-        if (isinstance(self.element, c.InlineInitializer)
+        if (isinstance(self.element, c.Initializer)
                 and hasattr(self.element.data, 'functions')):
             return self.element.data.functions
 
@@ -206,7 +205,7 @@ class Element(Node):
 
     @property
     def free_symbols(self):
-        if (isinstance(self.element, c.InlineInitializer)
+        if (isinstance(self.element, c.Initializer)
                 and hasattr(self.element.data, 'free_symbols')):
             return self.element.data.free_symbols
 
@@ -214,14 +213,14 @@ class Element(Node):
 
     @property
     def defines(self):
-        if isinstance(self.element, c.InlineInitializer):
+        if isinstance(self.element, c.Initializer):
             return self.element.vdecl
 
         return []
 
     @property
     def children(self):
-        if (isinstance(self.element, c.InlineInitializer)
+        if (isinstance(self.element, c.Initializer)
                 and isinstance(self.element.data, Node)):
             return [self.element.data]
 
@@ -234,10 +233,10 @@ class Call(Simple, Node):
 
     is_Call = True
 
-    def __init__(self, name, arguments=None, semicolon=True):
+    def __init__(self, name, arguments=None, semicolon=None):
         self.name = name
         self.arguments = as_tuple(arguments)
-        self.semicolon = semicolon
+        self.semicolon = semicolon if semicolon is not None else True
 
     def __repr__(self):
         return "Call::\n\t%s(...)" % self.name

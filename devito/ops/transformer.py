@@ -36,9 +36,9 @@ def opsit(trees, count):
             it_dims = len(tree)
 
     block = OPSBlock(namespace['ops_block'](count))
-    block_init = Element(cgen.InlineInitializer(
+    block_init = Element(cgen.Initializer(
         block,
-        Call("ops_decl_block", [it_dims, String(block.name)])
+        Call("ops_decl_block", [it_dims, String(block.name)], False)
     ))
 
     ops_expressions = []
@@ -203,9 +203,8 @@ def to_ops_dat(function, block):
         base_val = [0 for i in range(ndim)]
         d_p_val = tuple([p[0] + h[0] for p, h in zip(padding, halo)])
         d_m_val = tuple([-(p[1] + h[1]) for p, h in zip(padding, halo)])
-        dim_shape = tuple([
-            sum(p) + sum(h) + dim for p, h, dim in zip(padding, halo, dim_shape)
-        ])
+        dim_shape = (function.shape_allocated[:time_pos] +
+                     function.shape_allocated[time_pos + 1:])
 
         for i in range(time_dims):
             access = FunctionTimeAccess(function, Symbol("%s%s" % (time_index, i)))
@@ -222,11 +221,12 @@ def to_ops_dat(function, block):
                     access,
                     String(function._C_typedata),
                     String("%s%s%s" % (function.name, time_index, i))
-                ]
+                ],
+                False
             )
             dats.append(ops_dat)
             ops_decl_dat_call.append(
-                Element(cgen.InlineInitializer(ops_dat, call))
+                Element(cgen.Initializer(ops_dat, call))
             )
     else:
         ops_dat = OPSDat("%s_dat" % function.name)
@@ -234,13 +234,10 @@ def to_ops_dat(function, block):
 
         d_p_val = tuple([p[0] + h[0] for p, h in zip(function.padding, function.halo)])
         d_m_val = tuple([-(p[1] + h[1]) for p, h in zip(function.padding, function.halo)])
-        dim_shape = tuple([
-            sum(p) + sum(h) + dim
-            for p, h, dim in zip(function.padding, function.halo, function.shape)
-        ])
+        dim_shape = function.shape_allocated
         base_val = [0 for i in function.shape]
 
-        ops_decl_dat_call.append(Element(cgen.InlineInitializer(ops_dat, Call(
+        ops_decl_dat_call.append(Element(cgen.Initializer(ops_dat, Call(
             "ops_decl_dat",
             [
                 block,
@@ -252,7 +249,8 @@ def to_ops_dat(function, block):
                 function,
                 String(function._C_typedata),
                 String(function.name)
-            ]
+            ],
+            False
         ))))
 
     res.append(Expression(ClusterizedEq(Eq(dim, ListInitializer(dim_shape)))))
