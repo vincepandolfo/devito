@@ -5,7 +5,8 @@ from collections import defaultdict
 
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import Call, Element, Expression, FindNodes, IterationTree, List
+from devito.ir.iet import (Call, Element, Expression, FindNodes, FindSymbols,
+                           IterationTree, List)
 from devito.ops.node_factory import OPSNodeFactory
 from devito.ops.nodes import OPSKernel
 from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess
@@ -23,8 +24,6 @@ OPS_READ = FunctionPointer("OPS_READ")
 def opsit(trees, count):
     node_factory = OPSNodeFactory()
     expressions = []
-    parameters = set()
-    to_remove = []
     for tree in trees:
         expressions.extend(FindNodes(Expression).visit(tree.inner))
 
@@ -46,30 +45,26 @@ def opsit(trees, count):
 
     for i in reversed(expressions):
         extend_accesses(accesses, get_accesses(i.expr))
-        parameters |= set(i.functions)
         ops_expressions.insert(0, Expression(make_ops_ast(i.expr, node_factory)))
-
-        if i.is_scalar_assign:
-            to_remove.append(i.write)
 
     ops_stencils_initializers, ops_stencils = generate_ops_stencils(accesses)
 
-    parameters -= set(to_remove)
-    arguments = set()
-    to_remove = []
+    to_remove = [f.name for f in FindSymbols('defines').visit(List(body=expressions))]
 
-    for exp in ops_expressions:
-        func = [f for f in exp.functions if f.name != "OPS_ACC_size"]
-        arguments |= set(func)
-        if exp.is_scalar_assign:
-            to_remove.append(exp.write)
+    parameters = FindSymbols('symbolics').visit(List(body=ops_expressions))
+    parameters = [
+        p for p in parameters
+        if p.name != 'OPS_ACC_size' and p.name not in to_remove
+    ]
+    parameters = sorted(parameters, key=lambda i: (i.is_Constant, i.name))
 
-    arguments -= set(to_remove)
+    arguments = FindSymbols('symbolics').visit(List(body=expressions))
+    arguments = [a for a in arguments if a.name not in to_remove]
     arguments = sorted(arguments, key=lambda i: (i.is_Constant, i.name))
 
     ops_expressions = [
         Expression(
-            fix_ops_acc(e.expr, [a.name for a in arguments])
+            fix_ops_acc(e.expr, [p.name for p in parameters])
         ) for e in ops_expressions
     ]
 
@@ -77,17 +72,17 @@ def opsit(trees, count):
         namespace['ops_kernel'](count),
         ops_expressions,
         "void",
-        arguments
+        parameters
     )
 
     dat_declarations = []
     argname_to_dat = {}
 
-    for p in parameters:
-        if p.is_Constant:
+    for a in arguments:
+        if a.is_Constant:
             continue
 
-        dat_dec, dat_sym = to_ops_dat(p, block)
+        dat_dec, dat_sym = to_ops_dat(a, block)
         dat_declarations.extend(dat_dec)
 
         for dat in dat_sym:
@@ -108,7 +103,7 @@ def opsit(trees, count):
     )))
 
     ops_args = get_ops_args(
-        [a for a in arguments], ops_stencils, argname_to_dat
+        [p for p in parameters], ops_stencils, argname_to_dat
     )
 
     par_loop = Call("ops_par_loop", [
