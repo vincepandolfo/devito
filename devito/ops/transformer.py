@@ -5,10 +5,9 @@ from collections import defaultdict
 
 from devito import Eq
 from devito.ir.equations import ClusterizedEq
-from devito.ir.iet import (Call, Element, Expression, FindNodes, FindSymbols,
+from devito.ir.iet import (Call, Callable, Element, Expression, FindNodes, FindSymbols,
                            IterationTree, List)
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.nodes import OPSKernel
 from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess
 from devito.ops.utils import (extend_accesses, generate_ops_stencils, get_accesses,
                               namespace)
@@ -68,7 +67,7 @@ def opsit(trees, count):
         ) for e in ops_expressions
     ]
 
-    callable_kernel = OPSKernel(
+    callable_kernel = Callable(
         namespace['ops_kernel'](count),
         ops_expressions,
         "void",
