@@ -116,7 +116,8 @@ def opsit(trees, count):
     return (
         callable_kernel,
         [par_loop_range_init, block_init] +
-        ops_stencils_initializers + dat_declarations,
+        ops_stencils_initializers + dat_declarations +
+        [Call("ops_partition", [String("")])],
         List(body=[par_loop])
     )
 
