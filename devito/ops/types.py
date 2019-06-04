@@ -28,12 +28,15 @@ class Array(basic.Array):
 
 
 class FunctionTimeAccess(basic.Basic):
-    is_LocalObject = True
     is_ArrayAccess = True
 
     def __init__(self, function, time_access_symbol):
         self.function = function
         self.time_access_symbol = time_access_symbol
+
+    @property
+    def name(self):
+        return self.function.name
 
     @property
     def _C_name(self):
@@ -42,6 +45,9 @@ class FunctionTimeAccess(basic.Basic):
     @property
     def free_symbols(self):
         return [self.function]
+
+    def get_decl_pair(self):
+        return [self.function.dtype], self._C_name
 
 
 class OPSDat(basic.Symbol):

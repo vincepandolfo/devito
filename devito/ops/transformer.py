@@ -84,8 +84,7 @@ def opsit(trees, count):
         dat_dec, dat_sym = to_ops_dat(a, block)
         dat_declarations.extend(dat_dec)
 
-        for dat in dat_sym:
-            argname_to_dat[dat.name.replace("_dat", "")] = dat
+        argname_to_dat.update(dat_sym)
 
     par_loop_range_arr = SymbolicArray(
         name=namespace['ops_range'](count),
@@ -114,13 +113,11 @@ def opsit(trees, count):
         *ops_args
     ])
 
-    dat_declarations.append(par_loop)
-
     return (
         callable_kernel,
         [par_loop_range_init, block_init] +
-        ops_stencils_initializers,
-        List(body=dat_declarations)
+        ops_stencils_initializers + dat_declarations,
+        List(body=[par_loop])
     )
 
 
@@ -183,7 +180,7 @@ def to_ops_dat(function, block):
     )
 
     res = []
-    dats = []
+    dats = {}
     ops_decl_dat_call = []
 
     if function.is_TimeFunction:
@@ -197,12 +194,24 @@ def to_ops_dat(function, block):
         base_val = [0 for i in range(ndim)]
         d_p_val = tuple([p[0] + h[0] for p, h in zip(padding, halo)])
         d_m_val = tuple([-(p[1] + h[1]) for p, h in zip(padding, halo)])
-        dim_shape = (function.shape_allocated[:time_pos] +
-                     function.shape_allocated[time_pos + 1:])
+
+        ops_dat_array = SymbolicArray(
+            name="%s_dat" % function.name,
+            dimensions=[time_dims],
+            dtype="ops_dat",
+        )
+
+        ops_decl_dat_call.append(Element(cgen.Statement(
+            "%s %s[%s]" % (
+                ops_dat_array.dtype,
+                ops_dat_array.name,
+                time_dims
+            )
+        )))
 
         for i in range(time_dims):
-            access = FunctionTimeAccess(function, Symbol("%s%s" % (time_index, i)))
-            ops_dat = OPSDat("%s%s%s_dat" % (function.name, time_index, i))
+            access = FunctionTimeAccess(function, i)
+            ops_dat_access = FunctionTimeAccess(ops_dat_array, i)
             call = Call(
                 "ops_decl_dat",
                 [
@@ -218,17 +227,20 @@ def to_ops_dat(function, block):
                 ],
                 False
             )
-            dats.append(ops_dat)
+            dats["%s%s%s" % (function.name, time_index, i)] = FunctionTimeAccess(
+                ops_dat_array,
+                Symbol("%s%s" % (time_index, i))
+            )
             ops_decl_dat_call.append(
-                Element(cgen.Initializer(ops_dat, call))
+                Element(cgen.Initializer(ops_dat_access, call))
             )
     else:
         ops_dat = OPSDat("%s_dat" % function.name)
-        dats.append(ops_dat)
+        dats[function.name] = ops_dat
 
         d_p_val = tuple([p[0] + h[0] for p, h in zip(function.padding, function.halo)])
         d_m_val = tuple([-(p[1] + h[1]) for p, h in zip(function.padding, function.halo)])
-        dim_shape = function.shape_allocated
+        dim_shape = function.shape
         base_val = [0 for i in function.shape]
 
         ops_decl_dat_call.append(Element(cgen.Initializer(ops_dat, Call(
