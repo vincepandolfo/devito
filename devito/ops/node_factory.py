@@ -62,4 +62,9 @@ class OPSNodeFactory(object):
         return new_indexed
 
     def new_ops_gbl(self, c):
-        return Constant(name='*%s' % c.name, dtype=c.dtype)
+        if c in self.ops_args:
+            return self.ops_args[c]
+        new_c = Constant(name='*%s' % c.name, dtype=c.dtype)
+        self.ops_args[c] = new_c
+
+        return new_c
