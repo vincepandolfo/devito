@@ -4,7 +4,7 @@
 #include "math.h"
 #include "sys/time.h"
 #include "ops_seq.h"
-#include "diffusion_so2.h"
+#include "diffusion_so14.h"
 #include "common_defines.h" 
 
 #define PADDING 14
@@ -29,8 +29,8 @@ int Kernel(const int x_M, const int x_m, const int y_M, const int y_m, const flo
   int u_d_p[2] = {PADDING, PADDING};
   int u_d_m[2] = {-PADDING, -PADDING};
   ops_dat u_dat[2];
-  ops_dat u_dat[0] = ops_decl_dat(block_0,1,(int *)u_dim,(int *)u_base,(int *)u_d_m,(int *)u_d_p,u[0],"float","ut0");
-  ops_dat u_dat[1] = ops_decl_dat(block_0,1,(int *)u_dim,(int *)u_base,(int *)u_d_m,(int *)u_d_p,u[1],"float","ut1");
+  u_dat[0] = ops_decl_dat(block_0,1,(int *)u_dim,(int *)u_base,(int *)u_d_m,(int *)u_d_p,u[0],"float","ut0");
+  u_dat[1] = ops_decl_dat(block_0,1,(int *)u_dim,(int *)u_base,(int *)u_d_m,(int *)u_d_p,u[1],"float","ut1");
   ops_partition("");
   for (int time = time_m, t0 = (time)%(2), t1 = (time + 1)%(2); time <= time_M; time += 1, t0 = (time)%(2), t1 = (time + 1)%(2))
   {
@@ -45,13 +45,13 @@ int Kernel(const int x_M, const int x_m, const int y_M, const int y_m, const flo
 int main(int argc, char * argv[]) {
   struct profiler timers;
 
-  float ** u = malloc(2 * sizeof(float*));
+  float ** u = (float**) malloc(2 * sizeof(float*));
   size_t grid_size = (SIZE + 2 * PADDING) * (SIZE + 2 * PADDING) * sizeof(float);
-  u[0] = malloc(grid_size);
-  u[1] = malloc(grid_size);
+  u[0] = (float*) malloc(grid_size);
+  u[1] = (float*) malloc(grid_size);
 
-  memset(u[0], 0, grid_size)
-  memset(u[1], 0, grid_size)
+  memset(u[0], 0, grid_size);
+  memset(u[1], 0, grid_size);
 
   for (int t = 0; t < 2; t++) {
     for (int y = PADDING; y < SIZE + PADDING; y++) {
@@ -76,7 +76,7 @@ int main(int argc, char * argv[]) {
   gettimeofday(&end_section0, NULL);
   timers.section0 = (double)(end_section0.tv_sec-start_section0.tv_sec)+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
 
-  printf("kernel runtime: %lld\n", timers.section0);
+  printf("kernel runtime: %f\n", timers.section0);
 
   return 0;
 }

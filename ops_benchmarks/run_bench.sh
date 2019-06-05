@@ -3,7 +3,7 @@
 SPACE_ORDER=$1
 
 mkdir build
-cp {Makefile,diffusion_so${SPACE_ORDER}.h,diffusion_so${SPACE_ORDER}.c} build/
+cp {Makefile,diffusion_so${SPACE_ORDER}.h,diffusion_so${SPACE_ORDER}.c,common_defines.h} build/
 
 cd build
 
