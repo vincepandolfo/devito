@@ -41,5 +41,5 @@ if __name__ == "__main__":
     spacing = 0.0003
     ui = ring_initial(spacing)
 
-    for so in [2, 4, 6, 8, 10, 12, 14, 16]:
+    for so in [4, 8, 12, 16]:
         execute_devito(ui, space_order=so)
