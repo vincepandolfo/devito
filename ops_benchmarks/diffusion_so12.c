@@ -15,9 +15,9 @@ struct profiler
 } ;
 
 
-int Kernel(const int x_M, const int x_m, const int y_M, const int y_m, const float dt, const float h_x, const float h_y, const int time_M, const int time_m, float ** u)
+int Kernel(int argc, const char ** argv, const int x_M, const int x_m, const int y_M, const int y_m, const float dt, const float h_x, const float h_y, const int time_M, const int time_m, float ** u)
 {
-  ops_init(0,0,1);
+  ops_init(argc,argv,2);
   int range_0[4] = {x_m, x_M, y_m, y_M};
   ops_block block_0 = ops_decl_block(2,"block_0");
   int s2d_ut0_5pt[10] = {0, 1, 1, 0, 0, -1, -1, 0, 0, 0};
@@ -38,11 +38,12 @@ int Kernel(const int x_M, const int x_m, const int y_M, const int y_m, const flo
     ops_par_loop(Kernel0,"Kernel0",block_0,2,(int *)range_0,ops_arg_dat(u_dat[t0],1,S2D_UT0_5PT,"float",OPS_READ),ops_arg_dat(u_dat[t1],1,S2D_UT1_1PT,"float",OPS_WRITE),ops_arg_gbl(&dt,1,"float",OPS_READ),ops_arg_gbl(&h_x,1,"float",OPS_READ),ops_arg_gbl(&h_y,1,"float",OPS_READ));
     /* End section0 */
   }
+  ops_timing_output(stdout);
   ops_exit();
   return 0;
 }
 
-int main(int argc, char * argv[]) {
+int main(int argc, const char ** argv) {
   struct profiler timers;
 
   float ** u = (float**) malloc(2 * sizeof(float*));
@@ -71,7 +72,7 @@ int main(int argc, char * argv[]) {
   struct timeval start_section0, end_section0;
   gettimeofday(&start_section0, NULL);
 
-  Kernel(SIZE, 0, SIZE, 0, DT, SPACING, SPACING, TIME_M, 0, u);
+  Kernel(argc, argv, SIZE, 0, SIZE, 0, DT, SPACING, SPACING, TIME_M, 0, u);
 
   gettimeofday(&end_section0, NULL);
   timers.section0 = (double)(end_section0.tv_sec-start_section0.tv_sec)+(double)(end_section0.tv_usec-start_section0.tv_usec)/1000000;
