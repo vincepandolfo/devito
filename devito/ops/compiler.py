@@ -48,7 +48,7 @@ def jit_compile(soname, code, h_code, compiler):
     cuda_install_path = os.environ.get("CUDA_INSTALL_PATH")
     subprocess.run([' '.join([
         '%s/bin/nvcc' % cuda_install_path,
-        '-Xcompiler="-std=c99"',
+        '-Xcompiler="-std=c99 -fPIC"',
         '-O3',
         '-gencode arch=compute_60,code=sm_60',
         '-DOPS_MPI',

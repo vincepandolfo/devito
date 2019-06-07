@@ -8,7 +8,7 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.iet import (Call, Callable, Element, Expression, FindNodes, FindSymbols,
                            IterationTree, List)
 from devito.ops.node_factory import OPSNodeFactory
-from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess
+from devito.ops.types import OPSBlock, OPSDat, FunctionTimeAccess, ArrayAccess
 from devito.ops.utils import (extend_accesses, generate_ops_stencils, get_accesses,
                               namespace)
 from devito.tools import dtype_to_cstr
@@ -212,7 +212,7 @@ def to_ops_dat(function, block):
 
         for i in range(time_dims):
             access = FunctionTimeAccess(function, i)
-            ops_dat_access = FunctionTimeAccess(ops_dat_array, i)
+            ops_dat_access = ArrayAccess(ops_dat_array, i)
             call = Call(
                 "ops_decl_dat",
                 [
@@ -228,12 +228,12 @@ def to_ops_dat(function, block):
                 ],
                 False
             )
-            dats["%s%s%s" % (function.name, time_index, i)] = FunctionTimeAccess(
+            dats["%s%s%s" % (function.name, time_index, i)] = ArrayAccess(
                 ops_dat_array,
                 Symbol("%s%s" % (time_index, i))
             )
             ops_decl_dat_call.append(
-                Element(cgen.Initializer(ops_dat_access, call))
+                Element(cgen.Assign(ops_dat_access, call))
             )
     else:
         ops_dat = OPSDat("%s_dat" % function.name)

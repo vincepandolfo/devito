@@ -595,7 +595,7 @@ class DiscreteFunction(AbstractCachedFunction, ArgProvider):
     _C_field_owned_ofs = 'oofs'
 
     _C_typedecl = Struct(_C_structname,
-                         [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
+                         [Value('%s' % ctypes_to_cstr(c_void_p), _C_field_data),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_nopad_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_domain_size),

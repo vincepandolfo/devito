@@ -201,6 +201,10 @@ class Element(Node):
                 and hasattr(self.element.data, 'functions')):
             return self.element.data.functions
 
+        if (isinstance(self.element, c.Assign)
+                and hasattr(self.element.rvalue, 'functions')):
+            return self.element.rvalue.functions
+
         return []
 
     @property
@@ -209,12 +213,19 @@ class Element(Node):
                 and hasattr(self.element.data, 'free_symbols')):
             return self.element.data.free_symbols
 
+        if (isinstance(self.element, c.Assign)
+                and hasattr(self.element.rvalue, 'free_symbols')):
+            return self.element.rvalue.free_symbols
+
         return []
 
     @property
     def defines(self):
         if isinstance(self.element, c.Initializer):
             return self.element.vdecl
+
+        if isinstance(self.element, c.Assign):
+            return self.element.lvalue
 
         return []
 
@@ -223,6 +234,10 @@ class Element(Node):
         if (isinstance(self.element, c.Initializer)
                 and isinstance(self.element.data, Node)):
             return [self.element.data]
+
+        if (isinstance(self.element, c.Assign)
+                and isinstance(self.element.rvalue, Node)):
+            return [self.element.rvalue]
 
         return []
 

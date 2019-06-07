@@ -27,6 +27,35 @@ class Array(basic.Array):
         return "const %s" % super()._C_typename
 
 
+class ArrayAccess(basic.Basic):
+    is_ArrayAccess = True
+
+    def __init__(self, function, access_symbol):
+        self.function = function
+        self.access_symbol = access_symbol
+
+    @property
+    def name(self):
+        return self.function.name
+
+    @property
+    def _C_name(self):
+        return "%s[%s]" % (self.function.name, self.access_symbol)
+
+    @property
+    def free_symbols(self):
+        return [self.function]
+
+    def get_decl_pair(self):
+        return [self.function.dtype], self._C_name
+
+    def __str__(self):
+        return self._C_name
+
+    def __repr__(self):
+        return self._C_name
+
+
 class FunctionTimeAccess(basic.Basic):
     is_ArrayAccess = True
 
@@ -40,14 +69,17 @@ class FunctionTimeAccess(basic.Basic):
 
     @property
     def _C_name(self):
-        return "%s[%s]" % (self.function.name, self.time_access_symbol)
+        return "(float *)&%s[%s]" % (self.function.name, self.time_access_symbol)
 
     @property
     def free_symbols(self):
         return [self.function]
 
     def get_decl_pair(self):
-        return [self.function.dtype], self._C_name
+        return (
+            [self.function.dtype],
+            "%s[%s]" % (self.function.name, self.time_access_symbol)
+        )
 
 
 class OPSDat(basic.Symbol):

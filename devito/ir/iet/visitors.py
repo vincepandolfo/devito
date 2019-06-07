@@ -155,7 +155,7 @@ class CGen(Visitor):
             if i.is_AbstractObject or i.is_Symbol:
                 ret.append(c.Value(i._C_typename, i._C_name))
             elif i.is_Tensor:
-                ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
+                ret.append(c.Value('%s' % i._C_typename, i._C_name))
             else:
                 ret.append(c.Value('void', '*_%s' % i._C_name))
         return ret
@@ -197,7 +197,7 @@ class CGen(Visitor):
         # lvalue
         lvalue = c.AlignedAttribute(f._data_alignment,
                                     c.Value(f._C_typedata,
-                                            '(*restrict %s)%s' % (f.name, shape)))
+                                            '(* %s)%s' % (f.name, shape)))
         return c.Initializer(lvalue, rvalue)
 
     def visit_tuple(self, o):
