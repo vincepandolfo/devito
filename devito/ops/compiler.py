@@ -1,4 +1,6 @@
 import warnings
+import os
+import subprocess
 
 from codepy.jit import compile_from_string
 from time import time
@@ -37,6 +39,13 @@ def jit_compile(soname, code, h_code, compiler):
 
         with open(h_file, 'w') as f:
             f.write(h_code)
+        with open(src_file, 'w') as f:
+            f.write(code)
+
+        subprocess.run(
+            "%s/../ops_translator/c/ops.py" % os.environ.get("OPS_INSTALL_PATH"),
+            src_file
+        )
     else:
         # Warning: dropping `code` on the floor in favor to whatever is written
         # within `src_file`
