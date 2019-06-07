@@ -51,11 +51,11 @@ def jit_compile(soname, code, h_code, compiler):
 
     # CUDA kernel compilation
     cuda_install_path = os.environ.get("CUDA_INSTALL_PATH")
-    subprocess.run([" ".join([
-        "%s/bin/nvcc" % cuda_install_path,
+    subprocess.run([' '.join([
+        '%s/bin/nvcc' % cuda_install_path,
         '-Xcompiler="-std=c99"',
         '-O3',
-        '-gencode arch=compute_60,code=sm_60'
+        '-gencode arch=compute_60,code=sm_60',
         '-DOPS_MPI',
         '-I%s/c/include' % ops_install_path,
         '-I.',
