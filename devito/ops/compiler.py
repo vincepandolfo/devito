@@ -66,6 +66,19 @@ def jit_compile(soname, code, h_code, compiler):
         './CUDA/%s_kernels.cu' % soname
     ])], cwd=get_jit_dir(), shell=True)
 
+    subprocess.run([' '.join([
+        '%s/bin/mpic++' % os.environ.get("MPI_INSTALL_PATH"),
+        '-fopenmp -O3 -shared -fPIC -DUNIX -Wall -ffloat-store -g',
+        '-I%s/include' % cuda_install_path,
+        '-I%s/c/include' % ops_install_path,
+        '-L%s/c/lib' % ops_install_path,
+        '-L%s/lib64' % cuda_install_path,
+        '%s_ops.cpp' % soname,
+        './CUDA/%s_kernels_cu.o' % soname,
+        '-lcudart -lops_cuda',
+        '-o %s.so' % soname
+    ])], cwd=get_jit_dir(), shell=True)
+
     # `catch_warnings` suppresses codepy complaining that it's taking
     # too long to acquire the cache lock. This warning can only appear
     # in a multiprocess session, typically (but not necessarily) when
