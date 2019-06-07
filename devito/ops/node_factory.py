@@ -50,8 +50,11 @@ class OPSNodeFactory(object):
             ops_arg = self.ops_args[ops_arg_id]
 
         # Get the space indices
-        space_indices = [e for i, e in enumerate(
-            indexed.indices) if i != TimeFunction._time_position]
+        if indexed.function.is_TimeFunction:
+            space_indices = [e for i, e in enumerate(
+                indexed.indices) if i != TimeFunction._time_position]
+        else:
+            space_indices = indexed.indices
 
         # Define the Macro used in OPS arg index
         access_macro = Macro(','.join(str(split_affine(i).shift) for i in space_indices))

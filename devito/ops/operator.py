@@ -24,21 +24,22 @@ class OperatorOPS(Operator):
         mapper = {}
 
         self._includes.append('ops_seq.h')
-        self._headers.append('#define OPS_2D')
 
         ops_init = Call("ops_init", [0, 0, 2])
         ops_timing = Call("ops_timing_output", [FunctionPointer("stdout")])
         ops_exit = Call("ops_exit")
 
         global_declarations = []
+        dims = None
         for n, (section, trees) in enumerate(find_affine_trees(iet).items()):
-            callable_kernel, declarations, par_loop_call_block = opsit(trees, n)
+            callable_kernel, declarations, par_loop_call_block, dims = opsit(trees, n)
             global_declarations.extend(declarations)
 
             self._header_functions.append(callable_kernel)
             mapper[trees[0].root] = par_loop_call_block
             mapper.update({i.root: mapper.get(i.root) for i in trees})  # Drop trees
 
+        self._headers.append('#define OPS_%sD' % dims)
         warning("The OPS backend is still work-in-progress")
 
         global_declarations.append(Transformer(mapper).visit(iet))

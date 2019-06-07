@@ -118,7 +118,8 @@ def opsit(trees, count):
         [par_loop_range_init, block_init] +
         ops_stencils_initializers + dat_declarations +
         [Call("ops_partition", [String("")])],
-        List(body=[par_loop])
+        List(body=[par_loop]),
+        it_dims
     )
 
 
@@ -253,7 +254,7 @@ def to_ops_dat(function, block):
                 base,
                 d_m,
                 d_p,
-                function,
+                FunctionTimeAccess(function, 0),
                 String(function._C_typedata),
                 String(function.name)
             ],
