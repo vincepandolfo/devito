@@ -1,13 +1,8 @@
-import warnings
 import os
 import subprocess
 
-from codepy.jit import compile_from_string
-from time import time
 
-from devito.logger import debug
 from devito.compiler import get_jit_dir, get_codepy_dir
-from devito.parameters import configuration
 
 
 def jit_compile(soname, code, h_code, compiler):
@@ -78,25 +73,3 @@ def jit_compile(soname, code, h_code, compiler):
         '-lcudart -lops_cuda',
         '-o %s.so' % soname
     ])], cwd=get_jit_dir(), shell=True)
-
-    # `catch_warnings` suppresses codepy complaining that it's taking
-    # too long to acquire the cache lock. This warning can only appear
-    # in a multiprocess session, typically (but not necessarily) when
-    # many processes are frequently attempting jit-compilation (e.g.,
-    # when running the test suite in parallel)
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        tic = time()
-        # Spinlock in case of MPI
-        sleep_delay = 0 if configuration['mpi'] else 1
-        _, _, _, recompiled = compile_from_string(compiler, target, code, src_file,
-                                                  cache_dir=cache_dir,
-                                                  debug=configuration['debug-compiler'],
-                                                  sleep_delay=sleep_delay)
-        toc = time()
-
-    if recompiled:
-        debug("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
-    else:
-        debug("%s: cache hit `%s` [%.2f s]" % (compiler, src_file, toc-tic))
