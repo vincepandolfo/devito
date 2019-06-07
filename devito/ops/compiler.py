@@ -57,7 +57,7 @@ def jit_compile(soname, code, h_code, compiler):
         '-DMPICH_IGNORE_CXX_SEEK',
         '-I/usr/include',
         '-c',
-        '-o ./CUDA/%s_kernels.cu.o' % soname,
+        '-o ./CUDA/%s_kernels_cu.o' % soname,
         './CUDA/%s_kernels.cu' % soname
     ])], cwd=get_jit_dir(), shell=True)
 
