@@ -38,14 +38,15 @@ def jit_compile(soname, code, h_code, compiler):
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         with open(h_file, 'w') as f:
+            f.write("\n")
             f.write(h_code)
         with open(src_file, 'w') as f:
             f.write(code)
 
-        subprocess.run(
+        subprocess.run([
             "%s/../ops_translator/c/ops.py" % os.environ.get("OPS_INSTALL_PATH"),
-            src_file
-        )
+            "%s.%s" % (soname, compiler.src_ext)
+        ], cwd=get_jit_dir())
     else:
         # Warning: dropping `code` on the floor in favor to whatever is written
         # within `src_file`
