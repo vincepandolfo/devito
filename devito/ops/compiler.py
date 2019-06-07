@@ -56,8 +56,11 @@ def jit_compile(soname, code, h_code, compiler):
         '-Xcompiler="-std=c99"',
         '-O3',
         '-gencode arch=compute_60,code=sm_60'
+        '-DOPS_MPI',
         '-I%s/c/include' % ops_install_path,
         '-I.',
+        '-DMPICH_IGNORE_CXX_SEEK',
+        '-I/usr/include',
         '-c',
         '-o ./CUDA/%s_kernels.cu.o' % soname,
         './CUDA/%s_kernels.cu' % soname
