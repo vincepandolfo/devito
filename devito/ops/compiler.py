@@ -32,35 +32,36 @@ def jit_compile(soname, code, h_code, compiler):
     h_file = "%s.h" % target
 
     cache_dir = get_codepy_dir().joinpath(soname[:7])
-    if configuration['jit-backdoor'] is False:
-        # Typically we end up here
-        # Make a suite of cache directories based on the soname
-        cache_dir.mkdir(parents=True, exist_ok=True)
+    # Typically we end up here
+    # Make a suite of cache directories based on the soname
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(h_file, 'w') as f:
-            f.write("\n")
-            f.write(h_code)
-        with open(src_file, 'w') as f:
-            f.write(code)
+    with open(h_file, 'w') as f:
+        f.write("\n")
+        f.write(h_code)
+    with open(src_file, 'w') as f:
+        f.write(code)
 
-        subprocess.run([
-            "%s/../ops_translator/c/ops.py" % os.environ.get("OPS_INSTALL_PATH"),
-            "%s.%s" % (soname, compiler.src_ext)
-        ], cwd=get_jit_dir())
-    else:
-        # Warning: dropping `code` on the floor in favor to whatever is written
-        # within `src_file`
-        try:
-            with open(src_file, 'r') as f:
-                code = f.read()
-            # Bypass the devito JIT cache
-            # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
-            # ranks would end up creating different cache dirs
-            cache_dir = cache_dir.joinpath('jit-backdoor')
-            cache_dir.mkdir(parents=True, exist_ok=True)
-        except FileNotFoundError:
-            raise ValueError("Trying to use the JIT backdoor for `%s`, but "
-                             "the file isn't present" % src_file)
+    ops_install_path = os.environ.get("OPS_INSTALL_PATH")
+    # OPS transltation
+    subprocess.run([
+        "%s/../ops_translator/c/ops.py" % ops_install_path,
+        "%s.%s" % (soname, compiler.src_ext)
+    ], cwd=get_jit_dir())
+
+    # CUDA kernel compilation
+    cuda_install_path = os.environ.get("CUDA_INSTALL_PATH")
+    subprocess.run([
+        "%s/bin/nvcc" % cuda_install_path,
+        '-Xcompiler="-std=c99"',
+        '-O3',
+        '-gencode arch=compute_60,code=sm_60'
+        '-I%s/c/include' % ops_install_path,
+        '-I.',
+        '-c',
+        '-o ./CUDA/%s_kernels.cu.o' % soname,
+        './CUDA/%s_kernels.cu' % soname
+    ], cwd=get_jit_dir())
 
     # `catch_warnings` suppresses codepy complaining that it's taking
     # too long to acquire the cache lock. This warning can only appear
