@@ -51,7 +51,7 @@ def jit_compile(soname, code, h_code, compiler):
 
     # CUDA kernel compilation
     cuda_install_path = os.environ.get("CUDA_INSTALL_PATH")
-    subprocess.run([
+    subprocess.run([" ".join([
         "%s/bin/nvcc" % cuda_install_path,
         '-Xcompiler="-std=c99"',
         '-O3',
@@ -64,7 +64,7 @@ def jit_compile(soname, code, h_code, compiler):
         '-c',
         '-o ./CUDA/%s_kernels.cu.o' % soname,
         './CUDA/%s_kernels.cu' % soname
-    ], cwd=get_jit_dir())
+    ])], cwd=get_jit_dir(), shell=True)
 
     # `catch_warnings` suppresses codepy complaining that it's taking
     # too long to acquire the cache lock. This warning can only appear
