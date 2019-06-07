@@ -314,7 +314,7 @@ class CGen(Visitor):
         # Kernel signature and body
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
-        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        signature = c.FunctionDeclaration(c.Extern("C", c.Value(o.retval, o.name)), decls)
         retval = [c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 

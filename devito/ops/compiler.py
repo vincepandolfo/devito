@@ -51,19 +51,17 @@ def jit_compile(soname, code, h_code, compiler):
         '-Xcompiler="-std=c99 -fPIC"',
         '-O3',
         '-gencode arch=compute_60,code=sm_60',
-        '-DOPS_MPI',
         '-I%s/c/include' % ops_install_path,
         '-I.',
-        '-DMPICH_IGNORE_CXX_SEEK',
-        '-I/usr/include',
         '-c',
         '-o ./CUDA/%s_kernels_cu.o' % soname,
         './CUDA/%s_kernels.cu' % soname
     ])], cwd=get_jit_dir(), shell=True)
 
     subprocess.run([' '.join([
-        '%s/bin/mpic++' % os.environ.get("MPI_INSTALL_PATH"),
-        '-fopenmp -O3 -shared -fPIC -DUNIX -Wall -ffloat-store -g',
+        'g++',
+        '-fopenmp -O3 -shared -fPIC -Wall -g',
+        '-march=native',
         '-I%s/include' % cuda_install_path,
         '-I%s/c/include' % ops_install_path,
         '-L%s/c/lib' % ops_install_path,
@@ -73,3 +71,6 @@ def jit_compile(soname, code, h_code, compiler):
         '-lcudart -lops_cuda',
         '-o %s.so' % soname
     ])], cwd=get_jit_dir(), shell=True)
+
+    # removing generated cuda kernels to avoid reuse
+    subprocess.run(["rm -rf ./CUDA"], cwd=get_jit_dir(), shell=True)

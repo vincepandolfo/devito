@@ -5,6 +5,7 @@ from devito.ir.iet.nodes import Call, List, MetaCall
 from devito.operator import Operator
 from devito.ops.transformer import opsit
 from devito.ops.compiler import jit_compile
+from devito.types.basic import FunctionPointer
 
 __all__ = ['OperatorOPS']
 
@@ -25,7 +26,8 @@ class OperatorOPS(Operator):
         self._includes.append('ops_seq.h')
         self._headers.append('#define OPS_2D')
 
-        ops_init = Call("ops_init", [0, 0, 1])
+        ops_init = Call("ops_init", [0, 0, 2])
+        ops_timing = Call("ops_timing_output", [FunctionPointer("stdout")])
         ops_exit = Call("ops_exit")
 
         global_declarations = []
@@ -41,7 +43,7 @@ class OperatorOPS(Operator):
 
         global_declarations.append(Transformer(mapper).visit(iet))
 
-        return List(body=[ops_init, *global_declarations, ops_exit])
+        return List(body=[ops_init, *global_declarations, ops_timing, ops_exit])
 
     def _finalize(self, iet, parameters):
         iet = iet_insert_decls(iet, parameters)
