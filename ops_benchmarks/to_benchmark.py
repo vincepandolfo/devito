@@ -58,7 +58,7 @@ class DiffusionExecutor(Executor):
 if __name__ == "__main__":
     bench = Benchmark(name="Diffusion", resultsdir="res", parameters={
         'timesteps': 1000,
-        'spacing': 0.0001,
+        'spacing': [0.0001, 0.0004],
         'space_order': [4, 8, 12, 16],
         'dse': ["aggressive", "advanced"]
     })
@@ -74,58 +74,64 @@ if __name__ == "__main__":
     resultsdir = "results"
 
     for dse in ["aggressive", "advanced"]:
-        params = {
-            'dse': dse
-        }
+        for spacing in [0.0001, 0.0004]:
+            params = {
+                'dse': dse,
+                'spacing': spacing
+            }
 
-        gflopss = bench.lookup(params=params, measure="gflopss", event="section0")
-        oi = bench.lookup(params=params, measure="oi", event="section0")
-        time = bench.lookup(params=params, measure="timings", event="section0")
+            gflopss = bench.lookup(params=params, measure="gflopss", event="section0")
+            oi = bench.lookup(params=params, measure="oi", event="section0")
+            time = bench.lookup(params=params, measure="timings", event="section0")
 
-        # Filename
-        figname = "Diffusion_dim(spacing=0.0001)_OPS_dse[%s].pdf" % dse
+            # Filename
+            shape = int(1 / spacing)
+            figname = "Diffusion_[%s,%s]_OPS_dse[%s].pdf" % (shape, shape, dse)
 
-        avail_colors = ['r', 'g', 'b', 'y', 'k', 'm']
-        avail_markers = ['o', 'x', '^', 'v', '<', '>']
+            avail_colors = ['r', 'g', 'b', 'y', 'k', 'm']
+            avail_markers = ['o', 'x', '^', 'v', '<', '>']
 
-        used_colors = {}
-        used_markers = {}
+            used_colors = {}
+            used_markers = {}
 
-        # Find min and max runtimes for instances having the same OI
-        min_max = {v: [0, sys.maxsize] for v in oi.values()}
-        for k, v in time.items():
-            i = oi[k]
-            min_max[i][0] = v if min_max[i][0] == 0 else min(v, min_max[i][0])
-            min_max[i][1] = v if min_max[i][1] == sys.maxsize else max(v, min_max[i][1])
+            # Find min and max runtimes for instances having the same OI
+            min_max = {v: [0, sys.maxsize] for v in oi.values()}
+            for k, v in time.items():
+                i = oi[k]
+                min_max[i][0] = v if min_max[i][0] == 0 else min(v, min_max[i][0])
+                min_max[i][1] = (v if min_max[i][1] == sys.maxsize
+                                 else max(v, min_max[i][1]))
 
-        with RooflinePlotter(figname=figname, plotdir=resultsdir,
-                             max_bw=max_bw, flop_ceils=flop_ceils,
-                             fancycolor=True, legend='drop') as plot:
-            for k, v in gflopss.items():
-                so = dict(k)['space_order']
+            with RooflinePlotter(figname=figname, plotdir=resultsdir,
+                                 max_bw=max_bw, flop_ceils=flop_ceils,
+                                 fancycolor=True, legend='drop') as plot:
+                for k, v in gflopss.items():
+                    so = dict(k)['space_order']
 
-                oi_value = oi[k]
-                time_value = time[k]
-                label = "SO %s" % so
+                    oi_value = oi[k]
+                    time_value = time[k]
+                    label = "SO %s" % so
 
-                color = used_colors[so] if so in used_colors else avail_colors.pop(0)
-                used_colors.setdefault(so, color)
-                marker = used_markers[so] if so in used_markers else avail_markers.pop(0)
-                used_markers.setdefault(so, marker)
+                    color = used_colors[so] if so in used_colors else avail_colors.pop(0)
+                    used_colors.setdefault(so, color)
+                    marker = (used_markers[so] if so in used_markers
+                              else avail_markers.pop(0))
+                    used_markers.setdefault(so, marker)
 
-                oi_loc = 0.076 if len(str(so)) == 1 else 0.09
-                oi_annotate = {'s': 'SO=%s' % so, 'size': 6, 'xy': (oi_value, oi_loc)}
-                if time_value in min_max[oi_value]:
-                    # Only annotate min and max runtimes on each OI line, to avoid
-                    # polluting the plot too much
-                    point_annotate = {'s': "%.2fs" % time_value, 'xytext': (0.0, 5.5),
-                                      'size': 6, 'rotation': 0}
-                else:
-                    point_annotate = None
-                oi_line = time_value == min_max[oi_value][0]
-                if oi_line:
-                    perf_annotate = {'size': 6, 'xytext': (-4, 5)}
+                    oi_loc = 0.076 if len(str(so)) == 1 else 0.09
+                    oi_annotate = {'s': 'SO=%s' % so, 'size': 6, 'xy': (oi_value, oi_loc)}
+                    if time_value in min_max[oi_value]:
+                        # Only annotate min and max runtimes on each OI line, to avoid
+                        # polluting the plot too much
+                        point_annotate = {'s': "%.2fs" % time_value, 'xytext': (0.0, 5.5),
+                                          'size': 6, 'rotation': 0}
+                    else:
+                        point_annotate = None
+                    oi_line = time_value == min_max[oi_value][0]
+                    if oi_line:
+                        perf_annotate = {'size': 6, 'xytext': (-4, 5)}
 
-                plot.add_point(gflops=v, oi=oi_value, marker=marker, color=color,
-                               oi_line=oi_line, label=label, perf_annotate=perf_annotate,
-                               oi_annotate=oi_annotate, point_annotate=point_annotate)
+                    plot.add_point(gflops=v, oi=oi_value, marker=marker, color=color,
+                                   oi_line=oi_line, label=label,
+                                   perf_annotate=perf_annotate,
+                                   oi_annotate=oi_annotate, point_annotate=point_annotate)
