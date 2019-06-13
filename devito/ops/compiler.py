@@ -1,4 +1,3 @@
-from time import time
 from codepy.jit import compile_from_string
 
 import os
@@ -7,7 +6,6 @@ import warnings
 
 from devito.compiler import Compiler, get_jit_dir, get_codepy_dir
 from devito import configuration
-from devito.logger import debug
 
 
 class OPSOpenMPCompiler(Compiler):
@@ -33,6 +31,39 @@ class OPSOpenMPCompiler(Compiler):
         self.library_dirs = library_dirs.split(' ')
 
         libraries = "ops_seq stdc++"
+        self.libraries = libraries.split(' ')
+
+    def __lookup_cmds__(self):
+        self.CC = 'gcc'
+        self.CXX = 'g++'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
+
+
+class OPSMPICompiler(Compiler):
+    CC = os.environ.get('CC', 'gcc')
+    CXX = os.environ.get('CXX', 'g++')
+    MPICC = os.environ.get('MPICC', 'mpicc')
+    MPICXX = os.environ.get('MPICXX', 'mpicxx')
+
+    def __init__(self, *args, **kwargs):
+        kwargs['cpp'] = True
+        kwargs['mpi'] = True
+        super(OPSOpenMPCompiler, self).__init__(*args, **kwargs)
+        ops_install_path = os.environ.get('OPS_INSTALL_PATH')
+
+        default = '-O3 -g -DUNIX -ffloat-store -fPIC -Wall -DOPS_MPI'
+        self.cflags = os.environ.get('CFLAGS', default).split(' ')
+
+        self.ldflags = os.environ.get('LDFLAGS', '-shared -fopenmp').split(' ')
+
+        include_dirs = '%s %s/c/include' % (get_jit_dir(), ops_install_path)
+        self.include_dirs = include_dirs.split(' ')
+
+        library_dirs = '%s/c/lib' % ops_install_path
+        self.library_dirs = library_dirs.split(' ')
+
+        libraries = "ops_mpi stdc++"
         self.libraries = libraries.split(' ')
 
     def __lookup_cmds__(self):
@@ -160,7 +191,7 @@ def jit_compile(soname, code, h_code, compiler):
 
             # Spinlock in case of MPI
             sleep_delay = 0 if configuration['mpi'] else 1
-            _, _, cuda_o, recompiled = compile_from_string(
+            _, _, cuda_o, _ = compile_from_string(
                 cuda_device_compiler, cuda_target,
                 cuda_code, cuda_src,
                 cache_dir=cache_dir,
@@ -169,7 +200,7 @@ def jit_compile(soname, code, h_code, compiler):
                 object=True
             )
 
-            _, _, src_o, recompiled = compile_from_string(
+            _, _, src_o, _ = compile_from_string(
                 cuda_host_compiler, target,
                 code, ops_src,
                 cache_dir=cache_dir,
@@ -196,21 +227,35 @@ def jit_compile(soname, code, h_code, compiler):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
 
-            tic = time()
             # Spinlock in case of MPI
             sleep_delay = 0 if configuration['mpi'] else 1
-            _, _, _, recompiled = compile_from_string(
+            compile_from_string(
                 compiler, target, [code, omp_code],
                 [ops_src, omp_kernel],
                 cache_dir=cache_dir,
                 debug=configuration['debug-compiler'],
                 sleep_delay=sleep_delay
             )
-            toc = time()
 
         subprocess.run(["rm -rf ./MPI_OpenMP"], cwd=get_jit_dir(), shell=True)
+    elif configuration.ops['target'] == 'MPI':
+        mpi_kernel = '%s/MPI/%s_seq_kernels.cpp' % (get_jit_dir(), soname)
+        mpi_code = ""
+        with open(mpi_kernel, 'r') as f:
+            mpi_code = f.read()
 
-        if recompiled:
-            debug("%s: compiled `%s` [%.2f s]" % (compiler, src_file, toc-tic))
-        else:
-            debug("%s: cache hit `%s` [%.2f s]" % (compiler, src_file, toc-tic))
+        cmpiiler = OPSOpenMPCompiler()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            # Spinlock in case of MPI
+            sleep_delay = 0 if configuration['mpi'] else 1
+            _, _, _, recmpiiled = compile_from_string(
+                cmpiiler, target, [code, mpi_code],
+                [ops_src, mpi_kernel],
+                cache_dir=cache_dir,
+                debug=configuration['debug-compiler'],
+                sleep_delay=sleep_delay
+            )
+
+        subprocess.run(["rm -rf ./MPI_OpenMP"], cwd=get_jit_dir(), shell=True)

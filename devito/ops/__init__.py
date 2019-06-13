@@ -8,7 +8,7 @@ from devito.dle import PlatformRewriter, modes
 from devito.parameters import Parameters, add_sub_configuration
 
 ops_configuration = Parameters('ops')
-ops_configuration.add('target', 'CUDA', accepted=('CUDA', 'OpenMP'))
+ops_configuration.add('target', 'CUDA', accepted=('CUDA', 'OpenMP', 'MPI'))
 env_vars_mapper = {
     'DEVITO_OPS_TARGET': 'target',
 }
