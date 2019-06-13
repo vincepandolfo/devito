@@ -1,5 +1,5 @@
 from time import time
-from codepy.jit import compile_from_string, link_extension
+from codepy.jit import compile_from_string
 
 import os
 import subprocess
@@ -42,18 +42,21 @@ class OPSOpenMPCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
-class OPSCUDACompiler(Compiler):
+class OPSCUDADeviceCompiler(Compiler):
     CC = os.environ.get('CC', 'nvcc')
 
     def __init__(self, *args, **kwargs):
-        super(OPSOpenMPCompiler, self).__init__(*args, **kwargs)
+        super(OPSCUDADeviceCompiler, self).__init__(*args, **kwargs)
+        self.o_ext = '.o'
 
         ops_install_path = os.environ.get('OPS_INSTALL_PATH')
-        cuda_install_path = os.environ.get('CUDA_INSTALL_PATH')
 
-        self.cc = '%s/bin/nvcc' % cuda_install_path
+        self.cc = 'nvcc'
 
-        self.cflags = ['-O3', '-XCompiler="-std=c99 -fPIC"']
+        self.cflags = [
+            '-Xcompiler="-fPIC"', '-O3',
+            '-gencode', 'arch=compute_60,code=sm_60'
+        ]
         self.ldflags = []
 
         include_dirs = '%s %s/c/include' % (get_jit_dir(), ops_install_path)
@@ -63,7 +66,7 @@ class OPSCUDACompiler(Compiler):
         self.CC = 'nvcc'
 
 
-class OPSCudaStep2Compiler(Compiler):
+class OPSCudaHostCompiler(Compiler):
     CC = os.environ.get('CC', 'gcc')
     CXX = os.environ.get('CXX', 'g++')
     MPICC = os.environ.get('MPICC', 'mpicc')
@@ -71,15 +74,13 @@ class OPSCudaStep2Compiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         kwargs['cpp'] = True
-        kwargs['mpi'] = True
-        super(OPSOpenMPCompiler, self).__init__(*args, **kwargs)
+        super(OPSCudaHostCompiler, self).__init__(*args, **kwargs)
+        self.o_ext = '.o'
         ops_install_path = os.environ.get('OPS_INSTALL_PATH')
         cuda_install_path = os.environ.get('CUDA_INSTALL_PATH')
 
-        cflags = '-O3 -shared -fopenmp -fPIC -Wall'
+        cflags = '-O3 -fopenmp -shared -fPIC -Wall -g -march=native'
         self.cflags = os.environ.get('CFLAGS', cflags).split(' ')
-
-        self.ldflags = os.environ.get('LDFLAGS', '').split(' ')
 
         include_dirs = '%s/include %s/c/include' % (cuda_install_path, ops_install_path)
         self.include_dirs = include_dirs.split(' ')
@@ -87,7 +88,7 @@ class OPSCudaStep2Compiler(Compiler):
         library_dirs = '%s/lib64 %s/c/lib' % (cuda_install_path, ops_install_path)
         self.library_dirs = library_dirs.split(' ')
 
-        libraries = "ops_cuda cudart"
+        libraries = "cudart ops_cuda"
         self.libraries = libraries.split(' ')
 
     def __lookup_cmds__(self):
@@ -123,6 +124,8 @@ def jit_compile(soname, code, h_code, compiler):
     # Make a suite of cache directories based on the soname
     cache_dir.mkdir(parents=True, exist_ok=True)
 
+    subprocess.run("rm *.h", shell=True, cwd=get_jit_dir())
+
     with open(h_file, 'w') as f:
         f.write("\n")
         f.write(h_code)
@@ -142,7 +145,7 @@ def jit_compile(soname, code, h_code, compiler):
 
     if configuration.ops['target'] == 'CUDA':
         # CUDA kernel compilation
-        cuda_compiler = OPSCUDACompiler()
+        cuda_device_compiler = OPSCUDADeviceCompiler()
         cuda_src = '%s/CUDA/%s_kernels.cu' % (get_jit_dir(), soname)
         cuda_target = '%s/%s_kernels_cu' % (get_jit_dir(), soname)
 
@@ -150,7 +153,7 @@ def jit_compile(soname, code, h_code, compiler):
         with open(cuda_src, 'r') as f:
             cuda_code = f.read()
 
-        cuda_step2_compiler = OPSCudaStep2Compiler()
+        cuda_host_compiler = OPSCudaHostCompiler()
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
@@ -158,7 +161,7 @@ def jit_compile(soname, code, h_code, compiler):
             # Spinlock in case of MPI
             sleep_delay = 0 if configuration['mpi'] else 1
             _, _, cuda_o, recompiled = compile_from_string(
-                cuda_compiler, cuda_target,
+                cuda_device_compiler, cuda_target,
                 cuda_code, cuda_src,
                 cache_dir=cache_dir,
                 debug=configuration['debug-compiler'],
@@ -167,19 +170,17 @@ def jit_compile(soname, code, h_code, compiler):
             )
 
             _, _, src_o, recompiled = compile_from_string(
-                cuda_step2_compiler, target,
-                code, src_file,
+                cuda_host_compiler, target,
+                code, ops_src,
                 cache_dir=cache_dir,
                 debug=configuration['debug-compiler'],
                 sleep_delay=sleep_delay,
                 object=True
             )
 
-            link_extension(
-                cuda_step2_compiler,
-                [cuda_o, src_o],
-                target,
-                cache_dir=cache_dir,
+            cuda_host_compiler.link_extension(
+                '%s%s' % (target, cuda_host_compiler.so_ext),
+                [src_o, cuda_o],
                 debug=configuration['debug-compiler']
             )
 
@@ -200,7 +201,7 @@ def jit_compile(soname, code, h_code, compiler):
             sleep_delay = 0 if configuration['mpi'] else 1
             _, _, _, recompiled = compile_from_string(
                 compiler, target, [code, omp_code],
-                [src_file, omp_kernel],
+                [ops_src, omp_kernel],
                 cache_dir=cache_dir,
                 debug=configuration['debug-compiler'],
                 sleep_delay=sleep_delay
