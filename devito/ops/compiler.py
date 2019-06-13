@@ -218,7 +218,7 @@ def jit_compile(soname, code, h_code, compiler):
         # removing generated cuda kernels to avoid reuse
         subprocess.run(["rm -rf ./CUDA"], cwd=get_jit_dir(), shell=True)
     elif configuration.ops['target'] == 'OpenMP':
-        omp_kernel = '%s/MPI_OpenMP/%s_cpu_kernels.cpp' % (get_jit_dir(), soname)
+        omp_kernel = '%s/MPI_OpenMP/%s_omp_kernels.cpp' % (get_jit_dir(), soname)
         omp_code = ""
         with open(omp_kernel, 'r') as f:
             omp_code = f.read()
@@ -239,7 +239,7 @@ def jit_compile(soname, code, h_code, compiler):
 
         subprocess.run(["rm -rf ./MPI_OpenMP"], cwd=get_jit_dir(), shell=True)
     elif configuration.ops['target'] == 'MPI':
-        mpi_kernel = '%s/MPI_OpenMP/%s_cpu_kernels.cpp' % (get_jit_dir(), soname)
+        mpi_kernel = '%s/MPI_OpenMP/%s_omp_kernels.cpp' % (get_jit_dir(), soname)
         mpi_code = ""
         with open(mpi_kernel, 'r') as f:
             mpi_code = f.read()
