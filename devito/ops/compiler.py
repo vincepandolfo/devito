@@ -244,7 +244,7 @@ def jit_compile(soname, code, h_code, compiler):
         with open(mpi_kernel, 'r') as f:
             mpi_code = f.read()
 
-        cmpiiler = OPSOpenMPCompiler()
+        cmpiiler = OPSMPICompiler()
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
 
