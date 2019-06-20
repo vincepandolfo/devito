@@ -129,3 +129,13 @@ through the special environment variable `DEVITO_AUTOTUNING`.
 For more information on how to drive Devito for maximum run-time performance,
 see [here](benchmarks/user/README.md) or ask the developers on the Slack
 channel linked above.
+
+## OPS backend
+
+In order to use the OPS backend, you must first install OPS: https://github.com/OP-DSL/OPS
+
+To use CUDA, modify this line: https://github.com/OP-DSL/OPS/blob/master/makefiles/Makefile.cuda#L4
+to `NVCCFLAGS := -Xcompiler="-std=c99 -fPIC"` before compiling OPS.
+
+To activate the OPS backend, set `DEVITO_BACKEND` to `ops`.
+To select target platform, set `DEVITO_OPS_TARGET` to the desired platform. (allows: `CUDA`, `OpenMP`)
